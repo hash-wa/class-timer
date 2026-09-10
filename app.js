@@ -346,6 +346,7 @@ function renderStage() {
   const head = `
     <div class="class-head">
       <h2 class="class-name">${esc(cls.name)}</h2>
+      <div class="now-inline" id="now-clock">—</div>
       <div class="class-side">
         <div class="class-progress dim">
           <div class="cp-labels">
@@ -533,9 +534,12 @@ function tick() {
 }
 
 function updateDynamic() {
-  $('#now-clock').textContent = new Date().toLocaleTimeString([], {
-    hour: 'numeric', minute: '2-digit', second: '2-digit',
-  });
+  const nowClock = $('#now-clock'); // lives inside the card, absent on onboarding
+  if (nowClock) {
+    nowClock.textContent = new Date().toLocaleTimeString([], {
+      hour: 'numeric', minute: '2-digit', second: '2-digit',
+    });
+  }
 
   const cls = currentClass();
   if (!cls) {
