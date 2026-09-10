@@ -9,6 +9,7 @@
   --accent-c: #06b6d4;
   --red: #fb7185;
   --green: #34d399;
+  --amber: #fbbf24;
   --surface: rgba(255, 255, 255, 0.07);
   --surface-hover: rgba(255, 255, 255, 0.12);
   --surface-soft: rgba(255, 255, 255, 0.035);
@@ -28,6 +29,7 @@ html.light {
   --muted: #5b6b88;
   --red: #e11d48;
   --green: #059669;
+  --amber: #d97706;
   --surface: rgba(20, 30, 60, 0.06);
   --surface-hover: rgba(20, 30, 60, 0.11);
   --surface-soft: rgba(20, 30, 60, 0.04);
@@ -233,6 +235,7 @@ main {
 }
 
 .big.over { color: var(--red); }
+.big.warn { color: var(--amber); }
 
 /* ---------- Pre-start ---------- */
 .pre { text-align: center; padding: 1rem 0 1.5rem; }
@@ -256,6 +259,9 @@ main {
   letter-spacing: 0.15em;
   font-size: 0.85rem;
 }
+
+.act-label .drift.behind { color: var(--amber); }
+.act-label .drift.ahead { color: var(--green); }
 
 .act-name {
   font-size: clamp(1.6rem, 5vw, 2.6rem);
@@ -285,6 +291,11 @@ main {
   transition: width 0.25s linear;
 }
 
+.bar.warning .bar-fill {
+  background: linear-gradient(90deg, #f59e0b, #fbbf24);
+  box-shadow: 0 0 18px rgba(245, 158, 11, 0.55);
+}
+
 .bar.overdue .bar-fill {
   background: var(--grad-hot);
   box-shadow: 0 0 18px rgba(244, 63, 94, 0.6);
@@ -296,12 +307,27 @@ main {
   to { opacity: 0.15; }
 }
 
+.adjust {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: -0.2rem 0 1rem;
+}
+
+.adjust .btn { color: var(--muted); }
+
 .act-foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 0.8rem;
+}
+
+.foot-btns {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
 }
 
 .next-up { color: var(--muted); font-size: 1.05rem; }
@@ -316,6 +342,7 @@ main {
 }
 
 .done-text { font-size: 1.4rem; margin: 0.6rem 0 1.2rem; color: var(--muted); }
+.done .btn { margin-top: 0.4rem; }
 
 /* ---------- Activity list ---------- */
 .act-list {
@@ -355,6 +382,12 @@ main {
 
 .al-min { font-variant-numeric: tabular-nums; }
 
+.al-win {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.92em;
+}
+
 /* ---------- Onboarding ---------- */
 .onboarding { text-align: center; padding: 2.5rem 1rem; }
 .onboarding h2 { margin-bottom: 0.8rem; }
@@ -382,6 +415,7 @@ body.fs .act-name { font-size: clamp(1.6rem, 7vmin, 5.5rem); }
 body.fs .bar { height: clamp(1.4rem, 3vmin, 2.6rem); }
 body.fs .next-up { font-size: clamp(1.05rem, 2.2vmin, 1.7rem); }
 body.fs .btn.primary { font-size: clamp(1.25rem, 2.6vmin, 2rem); }
+body.fs .adjust .btn { font-size: clamp(0.9rem, 1.8vmin, 1.4rem); }
 body.fs .act-list li { font-size: clamp(1rem, 2.2vmin, 1.7rem); }
 body.fs .done-mark { font-size: clamp(4.5rem, 16vmin, 12rem); }
 body.fs .hint { display: none; }
@@ -538,5 +572,6 @@ input[type="number"].in { width: 5rem; }
     padding: 0.6rem;
   }
   .act-foot { justify-content: center; }
-  .act-foot .btn.primary { width: 100%; }
+  .foot-btns { width: 100%; flex-direction: column-reverse; }
+  .foot-btns .btn { width: 100%; }
 }

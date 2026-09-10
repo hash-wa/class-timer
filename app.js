@@ -107,10 +107,65 @@ function activityDurMs(cls, rt) {
   const acts = setFor(cls).activities;
   const a = acts[rt.index];
   if (!a) return 0;
-  if (fillsRest(cls, rt.index)) {
-    return Math.max(0, +startDate(cls) + cls.durationMin * 60000 - rt.startedAt);
+  const adjust = (rt.adjusts && rt.adjusts[rt.index]) || 0;
+  const base = fillsRest(cls, rt.index)
+    ? Math.max(0, +startDate(cls) + cls.durationMin * 60000 - rt.startedAt)
+    : a.min * 60000;
+  return Math.max(0, base + adjust);
+}
+
+// Planned duration of slot i, ignoring runtime drift (the fill slot gets
+// whatever the plan leaves for it).
+function actPlannedMs(cls, i) {
+  const acts = setFor(cls).activities;
+  if (fillsRest(cls, i)) {
+    const others = acts.reduce((sum, a, j) => (j === i ? sum : sum + (a.min || 0)), 0);
+    return Math.max(0, cls.durationMin - others) * 60000;
   }
-  return a.min * 60000;
+  return (acts[i] ? acts[i].min : 0) * 60000;
+}
+
+// Projected clock window per activity plus overall drift (positive = behind
+// plan). Past activities use their recorded actual starts; future ones are
+// pushed out live while the current activity runs over.
+function projectSchedule(cls, rt, now) {
+  const acts = setFor(cls).activities;
+  const n = acts.length;
+  const win = new Array(n);
+  if (!n) return { win, drift: 0 };
+
+  const classEnd = classEndMs(cls);
+  const planned = new Array(n + 1);
+  let p = +startDate(cls);
+  for (let i = 0; i < n; i++) { planned[i] = p; p += actPlannedMs(cls, i); }
+  planned[n] = p;
+
+  if (rt.index === -1) {
+    for (let i = 0; i < n; i++) win[i] = { s: planned[i], e: planned[i] + actPlannedMs(cls, i) };
+    return { win, drift: 0 };
+  }
+
+  const cur = Math.min(rt.index, n - 1);
+  for (let i = 0; i <= cur; i++) {
+    const s = rt.starts[i] ?? planned[i];
+    let e;
+    if (i < cur) e = rt.starts[i + 1] ?? s + actPlannedMs(cls, i);
+    else if (rt.done) e = rt.finishedAt ?? s + actPlannedMs(cls, i);
+    else e = rt.startedAt + activityDurMs(cls, rt);
+    win[i] = { s, e };
+  }
+  if (rt.done) return { win, drift: 0 };
+
+  let cursor = Math.max(win[cur].e, now);
+  for (let i = cur + 1; i < n; i++) {
+    const dur = fillsRest(cls, i) ? Math.max(0, classEnd - cursor) : acts[i].min * 60000;
+    win[i] = { s: cursor, e: cursor + dur };
+    cursor += dur;
+  }
+  const drift = cur + 1 < n
+    ? win[cur + 1].s - planned[cur + 1]
+    : Math.max(win[cur].e, now) - planned[n];
+  return { win, drift };
 }
 
 function sortedClasses() {
@@ -119,9 +174,12 @@ function sortedClasses() {
 
 function rtFor(classId) {
   if (!runtime.byClass[classId]) {
-    runtime.byClass[classId] = { index: -1, startedAt: null, done: false };
+    runtime.byClass[classId] = { index: -1, startedAt: null, done: false, starts: {}, adjusts: {} };
   }
-  return runtime.byClass[classId];
+  const rt = runtime.byClass[classId];
+  if (!rt.starts) rt.starts = {};   // runtimes saved by older versions
+  if (!rt.adjusts) rt.adjusts = {};
+  return rt;
 }
 
 function pickDefaultClass() {
@@ -182,6 +240,13 @@ function fmt12(hhmm) {
 
 function fmt12Date(d) {
   return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+// Compact clock time without AM/PM, for the per-activity windows.
+function fmtHM(t) {
+  const d = t instanceof Date ? t : new Date(t);
+  const h = d.getHours() % 12 || 12;
+  return `${h}:${pad(d.getMinutes())}`;
 }
 
 /* ================= Sound ================= */
@@ -254,7 +319,7 @@ function activityListHTML(cls, rt) {
     if (rt.done || (rt.index >= 0 && i < rt.index)) state = 'done';
     else if (!rt.done && i === rt.index) state = 'current';
     const minLabel = fillsRest(cls, i) ? 'rest of class' : `${a.min} min`;
-    return `<li class="${state}"><span class="al-name">${esc(a.name)}</span><span class="al-min">${minLabel}</span></li>`;
+    return `<li class="${state}"><span class="al-name">${esc(a.name)}</span><span class="al-win" data-i="${i}"></span><span class="al-min">${minLabel}</span></li>`;
   }).join('') + '</ol>';
 }
 
@@ -300,6 +365,7 @@ function renderStage() {
       <div class="done">
         <div class="done-mark">✓</div>
         <div class="done-text">${esc(cls.name)} — all activities complete</div>
+        ${rt.index >= 0 ? '<button id="btn-back" class="btn ghost" title="Back to the last activity">◂ Back</button>' : ''}
       </div>`;
   } else if (rt.index === -1) {
     const missed = isMissedToday(cls, rt);
@@ -314,13 +380,21 @@ function renderStage() {
     const next = acts[rt.index + 1];
     body = `
       <div class="activity">
-        <div class="act-label">Activity ${rt.index + 1} of ${acts.length}</div>
+        <div class="act-label">Activity ${rt.index + 1} of ${acts.length}<span id="drift"></span></div>
         <div class="act-name">${esc(a.name)}</div>
         <div class="big" id="act-remaining">—</div>
         <div class="bar" id="bar"><div class="bar-fill" id="bar-fill"></div></div>
+        <div class="adjust">
+          <button class="btn small" data-adj="-60000" title="Take a minute off this activity">−1 min</button>
+          <button class="btn small" data-adj="60000" title="Give this activity one more minute">+1 min</button>
+          <button class="btn small" data-adj="300000" title="Give this activity five more minutes">+5 min</button>
+        </div>
         <div class="act-foot">
           <span class="next-up">${next ? `Next: ${esc(next.name)} · ${fillsRest(cls, rt.index + 1) ? 'rest of class' : `${next.min} min`}` : 'Last activity'}</span>
-          <button id="btn-next" class="btn primary">${next ? 'Next Activity ▸' : 'Finish Class ✓'}</button>
+          <div class="foot-btns">
+            ${rt.index > 0 ? '<button id="btn-back" class="btn ghost" title="Back to the previous activity">◂ Back</button>' : ''}
+            <button id="btn-next" class="btn primary">${next ? 'Next Activity ▸' : 'Finish Class ✓'}</button>
+          </div>
         </div>
       </div>`;
   }
@@ -328,8 +402,12 @@ function renderStage() {
   stage.innerHTML = `<section class="card">${head}${body}${activityListHTML(cls, rt)}</section>`;
 
   $('#btn-next')?.addEventListener('click', nextActivity);
+  $('#btn-back')?.addEventListener('click', prevActivity);
   $('#btn-start-now')?.addEventListener('click', startNow);
   $('#btn-restart')?.addEventListener('click', restartClass);
+  stage.querySelectorAll('[data-adj]').forEach((b) => {
+    b.addEventListener('click', () => adjustCurrent(Number(b.dataset.adj)));
+  });
   updateDynamic();
 }
 
@@ -342,6 +420,9 @@ function startNow() {
   if (setFor(cls).activities.length) {
     rt.index = 0;
     rt.startedAt = Date.now();
+    rt.starts[0] = rt.startedAt;
+    delete rt.adjusts[0];
+    beeped.delete(cls.id + ':0');
   } else {
     rt.done = true;
   }
@@ -362,18 +443,52 @@ function nextActivity() {
   if (rt.index < acts.length - 1) {
     rt.index += 1;
     rt.startedAt = Date.now();
+    rt.starts[rt.index] = rt.startedAt;
+    delete rt.adjusts[rt.index]; // fresh run of this slot
+    beeped.delete(cls.id + ':' + rt.index);
   } else {
     rt.done = true;
+    rt.finishedAt = Date.now();
   }
   saveRuntime();
   renderStage();
+}
+
+function prevActivity() {
+  const cls = currentClass();
+  if (!cls) return;
+  const rt = rtFor(cls.id);
+  if (rt.done && rt.index >= 0) {
+    rt.done = false;
+    rt.finishedAt = null;
+  } else if (rt.index > 0) {
+    rt.index -= 1;
+  } else {
+    return;
+  }
+  // Restore the activity's original clock so its countdown resumes as if
+  // the accidental advance never happened.
+  rt.startedAt = rt.starts[rt.index] ?? Date.now();
+  saveRuntime();
+  renderStage();
+}
+
+function adjustCurrent(ms) {
+  const cls = currentClass();
+  if (!cls) return;
+  const rt = rtFor(cls.id);
+  if (rt.index < 0 || rt.done) return;
+  rt.adjusts[rt.index] = (rt.adjusts[rt.index] || 0) + ms;
+  if (ms > 0) beeped.delete(cls.id + ':' + rt.index); // may chime again at the new end
+  saveRuntime();
+  updateDynamic();
 }
 
 function restartClass() {
   const cls = currentClass();
   if (!cls) return;
   if (!confirm(`Restart "${cls.name}" from the beginning?`)) return;
-  runtime.byClass[cls.id] = { index: -1, startedAt: null, done: false };
+  runtime.byClass[cls.id] = { index: -1, startedAt: null, done: false, starts: {}, adjusts: {} };
   for (const key of [...beeped]) {
     if (key.startsWith(cls.id + ':')) beeped.delete(key);
   }
@@ -405,6 +520,7 @@ function tick() {
       if (acts.length) {
         rt.index = 0;
         rt.startedAt = startMs; // anchored to the schedule, even if the page opened late
+        rt.starts[0] = startMs;
       } else {
         rt.done = true;
       }
@@ -422,16 +538,21 @@ function updateDynamic() {
   });
 
   const cls = currentClass();
-  if (!cls) return;
+  if (!cls) {
+    if (document.title !== 'Class Timer') document.title = 'Class Timer';
+    return;
+  }
   const rt = rtFor(cls.id);
   const now = Date.now();
   const start = +startDate(cls);
   const end = start + classDurationMin(cls) * 60000;
+  const missed = isMissedToday(cls, rt);
+  let title = 'Class Timer';
 
   const classRem = $('#class-remaining');
   const classFill = $('#class-bar-fill');
   if (classRem && classFill) {
-    if (now < start || isMissedToday(cls, rt)) {
+    if (now < start || missed) {
       classRem.textContent = fmtDur(end - start);
       classRem.classList.remove('over');
       classFill.style.width = '0%';
@@ -448,12 +569,15 @@ function updateDynamic() {
     }
   }
 
-  const preRem = $('#pre-remaining');
-  if (preRem) {
+  if (rt.done) {
+    title = `✓ ${cls.name}`;
+  } else if (rt.index === -1) {
     // A missed class counts down to tomorrow's start instead of showing
     // time elapsed since today's.
-    const target = isMissedToday(cls, rt) ? start + 86400000 : start;
-    preRem.textContent = fmtDur(target - now);
+    const target = missed ? start + 86400000 : start;
+    const preRem = $('#pre-remaining');
+    if (preRem) preRem.textContent = fmtDur(target - now);
+    title = `in ${fmtDur(target - now)} · ${cls.name}`;
   }
 
   const acts = setFor(cls).activities;
@@ -464,26 +588,58 @@ function updateDynamic() {
     const big = $('#act-remaining');
     const bar = $('#bar');
     const fill = $('#bar-fill');
-    if (!big || !bar || !fill) return;
-    if (remaining >= 0) {
-      big.textContent = fmtDur(remaining);
-      big.classList.remove('over');
-      bar.classList.remove('overdue');
-      fill.style.width = durMs > 0
-        ? Math.min(100, (elapsed / durMs) * 100).toFixed(2) + '%'
-        : '100%';
-    } else {
-      big.textContent = '+' + fmtDur(-remaining);
-      big.classList.add('over');
-      bar.classList.add('overdue');
-      fill.style.width = '100%';
-      const key = cls.id + ':' + rt.index;
-      if (!beeped.has(key)) {
-        beeped.add(key);
-        chime();
+    if (big && bar && fill) {
+      if (remaining >= 0) {
+        // Amber "wrap it up" phase for roughly the last 15% of the activity,
+        // clamped between 30 s and 2 min.
+        const warnMs = Math.min(120000, Math.max(30000, durMs * 0.15));
+        const warning = remaining <= warnMs;
+        big.textContent = fmtDur(remaining);
+        big.classList.remove('over');
+        big.classList.toggle('warn', warning);
+        bar.classList.remove('overdue');
+        bar.classList.toggle('warning', warning);
+        fill.style.width = durMs > 0
+          ? Math.min(100, (elapsed / durMs) * 100).toFixed(2) + '%'
+          : '100%';
+        title = `${fmtDur(remaining)} · ${acts[rt.index].name}`;
+      } else {
+        big.textContent = '+' + fmtDur(-remaining);
+        big.classList.add('over');
+        big.classList.remove('warn');
+        bar.classList.add('overdue');
+        bar.classList.remove('warning');
+        fill.style.width = '100%';
+        title = `⏰ +${fmtDur(-remaining)} · ${acts[rt.index].name}`;
+        const key = cls.id + ':' + rt.index;
+        if (!beeped.has(key)) {
+          beeped.add(key);
+          chime();
+        }
       }
     }
   }
+
+  // Live projected clock windows per activity, plus overall drift.
+  const proj = projectSchedule(cls, rt, now);
+  document.querySelectorAll('#stage .al-win').forEach((el) => {
+    const w = proj.win[Number(el.dataset.i)];
+    el.textContent = w && Number.isFinite(w.s) && Number.isFinite(w.e)
+      ? `${fmtHM(w.s)}–${fmtHM(w.e)}`
+      : '';
+  });
+  const driftEl = $('#drift');
+  if (driftEl) {
+    const mins = Math.round(proj.drift / 60000);
+    if (Math.abs(mins) >= 1) {
+      driftEl.textContent = ` · ${Math.abs(mins)} min ${mins > 0 ? 'behind' : 'ahead'}`;
+      driftEl.className = 'drift ' + (mins > 0 ? 'behind' : 'ahead');
+    } else {
+      driftEl.textContent = '';
+    }
+  }
+
+  if (document.title !== title) document.title = title;
 }
 
 /* ================= Settings panel ================= */
@@ -756,6 +912,9 @@ function init() {
     if ((k === ' ' && !onButton) || ['n', 'N', 'ArrowRight', 'PageDown'].includes(k)) {
       e.preventDefault();
       nextActivity();
+    } else if (k === 'ArrowLeft' || k === 'PageUp') {
+      e.preventDefault();
+      prevActivity();
     } else if (k === 'f' || k === 'F') {
       toggleFullscreen();
     } else if (k === 'd' || k === 'D') {
