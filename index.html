@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Classroom timer with per-class schedules and activity countdowns.">
+  <meta name="theme-color" content="#0b1020">
+  <title>Class Timer</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⏱️</text></svg>">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">⏱️ Class Timer</div>
+    <div class="now" id="now-clock">—</div>
+    <div class="topbar-actions">
+      <button id="btn-sound" class="icon-btn" title="Toggle end-of-activity chime">🔔</button>
+      <button id="btn-fullscreen" class="icon-btn" title="Toggle fullscreen">⛶</button>
+      <button id="btn-settings" class="btn ghost">⚙ Setup</button>
+    </div>
+  </header>
+
+  <nav id="class-chips" class="chips" aria-label="Classes"></nav>
+
+  <main id="stage"></main>
+
+  <footer class="hint">Space / → / N&nbsp;=&nbsp;Next Activity · Data is saved in this browser</footer>
+
+  <div id="settings-overlay" class="overlay hidden">
+    <div class="panel" role="dialog" aria-modal="true" aria-label="Setup">
+      <div class="panel-head">
+        <h2>Setup</h2>
+        <button id="btn-close-settings" class="icon-btn" title="Close">✕</button>
+      </div>
+      <div class="panel-body" id="panel-body">
+        <section>
+          <h3>Activity sets</h3>
+          <p class="muted">A reusable list of activities. Several classes can share one set.</p>
+          <div id="sets-list"></div>
+          <button id="btn-add-set" class="btn small">+ New activity set</button>
+        </section>
+        <section>
+          <h3>Classes</h3>
+          <p class="muted">Each class has a start time, a duration (leave blank to use the sum of its activities), and an activity set.</p>
+          <div class="classes-header">
+            <span>Name</span><span>Start</span><span>Duration</span><span>Activity set</span><span></span>
+          </div>
+          <div id="classes-list"></div>
+          <button id="btn-add-class" class="btn small">+ New class</button>
+        </section>
+        <section>
+          <h3>Data</h3>
+          <div class="data-row">
+            <button id="btn-export" class="btn small">Export JSON</button>
+            <label class="btn small file-btn">Import JSON<input id="import-file" type="file" accept="application/json,.json" hidden></label>
+            <button id="btn-reset-data" class="btn small danger">Reset all data</button>
+          </div>
+          <p class="muted">Settings live in this browser only — use Export/Import to move them to another computer.</p>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
