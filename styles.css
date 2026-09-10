@@ -176,14 +176,14 @@ main {
 
 .class-name { font-size: 1.5rem; font-weight: 700; }
 
-/* Live clock, centered between the class name and the class progress */
+/* Live clock, centered under the class progress bar. Full text color: the
+   parent .dim already fades it to match the rest of the corner block. */
 .now-inline {
-  flex: 1;
-  min-width: 7.5rem;
+  margin-top: 0.4rem;
   text-align: center;
   font-variant-numeric: tabular-nums;
-  color: var(--muted);
-  font-size: 1.2rem;
+  color: var(--text);
+  font-size: 1.05rem;
 }
 
 /* Class-level progress (top right) */
@@ -409,7 +409,7 @@ main {
 body.fs main { align-items: center; }
 body.fs .card { width: min(96vw, 120rem); }
 body.fs .class-name { font-size: clamp(1.5rem, 4vmin, 3rem); }
-body.fs .now-inline { font-size: clamp(1.2rem, 2.8vmin, 2.2rem); }
+body.fs .now-inline { font-size: clamp(1.05rem, 2.2vmin, 1.8rem); }
 body.fs .cp-labels { font-size: clamp(0.9rem, 1.8vmin, 1.4rem); }
 body.fs .class-remaining { font-size: clamp(1.15rem, 2.4vmin, 1.9rem); }
 body.fs .big { font-size: clamp(3.5rem, 26vmin, 24rem); }

@@ -346,7 +346,6 @@ function renderStage() {
   const head = `
     <div class="class-head">
       <h2 class="class-name">${esc(cls.name)}</h2>
-      <div class="now-inline" id="now-clock">—</div>
       <div class="class-side">
         <div class="class-progress dim">
           <div class="cp-labels">
@@ -355,6 +354,7 @@ function renderStage() {
             <span>${fmt12Date(end)}</span>
           </div>
           <div class="cp-bar"><div class="cp-fill" id="class-bar-fill"></div></div>
+          <div class="now-inline" id="now-clock">—</div>
         </div>
         <button id="btn-restart" class="icon-btn bordered" title="Restart this class from the beginning">↺</button>
       </div>
