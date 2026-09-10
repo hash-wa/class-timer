@@ -48,7 +48,10 @@ function defaultConfig() {
 }
 
 let config = loadJSON(CONFIG_KEY) || defaultConfig();
-let prefs = Object.assign({ sound: true }, loadJSON(PREFS_KEY));
+let prefs = Object.assign(
+  { sound: true, theme: 'dark', keepAwake: true, dimFs: false },
+  loadJSON(PREFS_KEY),
+);
 
 // Per-class progress for today: { date, selected, byClass: { [classId]: { index, startedAt, done } } }
 // index === -1 means the class hasn't started yet.
@@ -83,6 +86,31 @@ function startDate(cls) {
 function classDurationMin(cls) {
   if (cls.durationMin && cls.durationMin > 0) return cls.durationMin;
   return setFor(cls).activities.reduce((sum, a) => sum + (a.min || 0), 0);
+}
+
+function classEndMs(cls) {
+  return +startDate(cls) + classDurationMin(cls) * 60000;
+}
+
+// True when today's class window has fully passed and the class was never run.
+function isMissedToday(cls, rt) {
+  return rt.index === -1 && !rt.done && Date.now() >= classEndMs(cls);
+}
+
+// The last activity stretches to the class end time when an explicit class
+// duration is set; every other activity uses its own duration.
+function fillsRest(cls, i) {
+  return cls.durationMin > 0 && i === setFor(cls).activities.length - 1;
+}
+
+function activityDurMs(cls, rt) {
+  const acts = setFor(cls).activities;
+  const a = acts[rt.index];
+  if (!a) return 0;
+  if (fillsRest(cls, rt.index)) {
+    return Math.max(0, +startDate(cls) + cls.durationMin * 60000 - rt.startedAt);
+  }
+  return a.min * 60000;
 }
 
 function sortedClasses() {
@@ -187,12 +215,18 @@ function chime() {
 let wakeLock = null;
 
 async function ensureWakeLock() {
+  if (!prefs.keepAwake) return;
   try {
     if ('wakeLock' in navigator && !wakeLock) {
       wakeLock = await navigator.wakeLock.request('screen');
       wakeLock.addEventListener('release', () => { wakeLock = null; });
     }
   } catch { /* not supported or denied */ }
+}
+
+function releaseWakeLock() {
+  try { if (wakeLock) wakeLock.release(); } catch { /* noop */ }
+  wakeLock = null;
 }
 
 document.addEventListener('visibilitychange', () => {
@@ -219,7 +253,8 @@ function activityListHTML(cls, rt) {
     let state = '';
     if (rt.done || (rt.index >= 0 && i < rt.index)) state = 'done';
     else if (!rt.done && i === rt.index) state = 'current';
-    return `<li class="${state}"><span class="al-name">${esc(a.name)}</span><span class="al-min">${a.min} min</span></li>`;
+    const minLabel = fillsRest(cls, i) ? 'rest of class' : `${a.min} min`;
+    return `<li class="${state}"><span class="al-name">${esc(a.name)}</span><span class="al-min">${minLabel}</span></li>`;
   }).join('') + '</ol>';
 }
 
@@ -246,12 +281,16 @@ function renderStage() {
   const head = `
     <div class="class-head">
       <h2 class="class-name">${esc(cls.name)}</h2>
-      <div class="class-window dim">
-        <span>${fmt12(cls.start)}</span>
-        <span class="arrow">→</span>
-        <span>${fmt12Date(end)}</span>
-        <span class="class-remaining" id="class-remaining">—</span>
-        <button id="btn-restart" class="icon-btn" title="Restart this class from the beginning">↺</button>
+      <div class="class-side">
+        <div class="class-progress dim">
+          <div class="cp-labels">
+            <span>${fmt12(cls.start)}</span>
+            <span class="class-remaining" id="class-remaining">—</span>
+            <span>${fmt12Date(end)}</span>
+          </div>
+          <div class="cp-bar"><div class="cp-fill" id="class-bar-fill"></div></div>
+        </div>
+        <button id="btn-restart" class="icon-btn bordered" title="Restart this class from the beginning">↺</button>
       </div>
     </div>`;
 
@@ -263,9 +302,10 @@ function renderStage() {
         <div class="done-text">${esc(cls.name)} — all activities complete</div>
       </div>`;
   } else if (rt.index === -1) {
+    const missed = isMissedToday(cls, rt);
     body = `
       <div class="pre">
-        <div class="pre-label">Starts at ${fmt12(cls.start)} — in</div>
+        <div class="pre-label">Starts at ${fmt12(cls.start)}${missed ? ' tomorrow' : ''} — in</div>
         <div class="big" id="pre-remaining">—</div>
         ${acts.length ? '<button id="btn-start-now" class="btn ghost">Start now</button>' : '<p class="muted">This class has no activities yet — add some in Setup.</p>'}
       </div>`;
@@ -279,7 +319,7 @@ function renderStage() {
         <div class="big" id="act-remaining">—</div>
         <div class="bar" id="bar"><div class="bar-fill" id="bar-fill"></div></div>
         <div class="act-foot">
-          <span class="next-up">${next ? `Next: ${esc(next.name)} · ${next.min} min` : 'Last activity'}</span>
+          <span class="next-up">${next ? `Next: ${esc(next.name)} · ${fillsRest(cls, rt.index + 1) ? 'rest of class' : `${next.min} min`}` : 'Last activity'}</span>
           <button id="btn-next" class="btn primary">${next ? 'Next Activity ▸' : 'Finish Class ✓'}</button>
         </div>
       </div>`;
@@ -357,12 +397,14 @@ function tick() {
   const cls = currentClass();
   if (cls) {
     const rt = rtFor(cls.id);
-    // Auto-start when the wall clock reaches the class start time.
-    if (rt.index === -1 && !rt.done && Date.now() >= +startDate(cls)) {
+    // Auto-start while the wall clock is inside the class window. A class
+    // whose window already passed stays pending and counts down to tomorrow.
+    const startMs = +startDate(cls);
+    if (rt.index === -1 && !rt.done && Date.now() >= startMs && Date.now() < classEndMs(cls)) {
       const acts = setFor(cls).activities;
       if (acts.length) {
         rt.index = 0;
-        rt.startedAt = +startDate(cls); // anchored to the schedule, even if the page opened late
+        rt.startedAt = startMs; // anchored to the schedule, even if the page opened late
       } else {
         rt.done = true;
       }
@@ -387,25 +429,36 @@ function updateDynamic() {
   const end = start + classDurationMin(cls) * 60000;
 
   const classRem = $('#class-remaining');
-  if (classRem) {
-    if (now < start) {
+  const classFill = $('#class-bar-fill');
+  if (classRem && classFill) {
+    if (now < start || isMissedToday(cls, rt)) {
       classRem.textContent = fmtDur(end - start);
       classRem.classList.remove('over');
+      classFill.style.width = '0%';
     } else if (now <= end) {
       classRem.textContent = fmtDur(end - now);
       classRem.classList.remove('over');
+      classFill.style.width = end > start
+        ? (((now - start) / (end - start)) * 100).toFixed(2) + '%'
+        : '100%';
     } else {
       classRem.textContent = '+' + fmtDur(now - end);
       classRem.classList.add('over');
+      classFill.style.width = '100%';
     }
   }
 
   const preRem = $('#pre-remaining');
-  if (preRem) preRem.textContent = fmtDur(start - now);
+  if (preRem) {
+    // A missed class counts down to tomorrow's start instead of showing
+    // time elapsed since today's.
+    const target = isMissedToday(cls, rt) ? start + 86400000 : start;
+    preRem.textContent = fmtDur(target - now);
+  }
 
   const acts = setFor(cls).activities;
   if (rt.index >= 0 && !rt.done && acts[rt.index]) {
-    const durMs = acts[rt.index].min * 60000;
+    const durMs = activityDurMs(cls, rt);
     const elapsed = now - rt.startedAt;
     const remaining = durMs - elapsed;
     const big = $('#act-remaining');
@@ -416,7 +469,9 @@ function updateDynamic() {
       big.textContent = fmtDur(remaining);
       big.classList.remove('over');
       bar.classList.remove('overdue');
-      fill.style.width = Math.min(100, (elapsed / durMs) * 100).toFixed(2) + '%';
+      fill.style.width = durMs > 0
+        ? Math.min(100, (elapsed / durMs) * 100).toFixed(2) + '%'
+        : '100%';
     } else {
       big.textContent = '+' + fmtDur(-remaining);
       big.classList.add('over');
@@ -607,6 +662,20 @@ function updateSoundButton() {
   $('#btn-sound').textContent = prefs.sound ? '🔔' : '🔕';
 }
 
+function applyTheme() {
+  document.documentElement.classList.toggle('light', prefs.theme === 'light');
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = prefs.theme === 'light' ? '#eef1f7' : '#0b1020';
+  const btn = $('#btn-theme');
+  if (btn) btn.textContent = prefs.theme === 'light' ? '🌙' : '☀️';
+}
+
+function setTheme(theme) {
+  prefs.theme = theme;
+  savePrefs();
+  applyTheme();
+}
+
 function toggleFullscreen() {
   if (document.fullscreenElement) document.exitFullscreen();
   else document.documentElement.requestFullscreen().catch(() => {});
@@ -644,6 +713,28 @@ function init() {
     if (prefs.sound) chime();
   });
   $('#btn-fullscreen').addEventListener('click', toggleFullscreen);
+  $('#btn-theme').addEventListener('click', () => {
+    setTheme(prefs.theme === 'light' ? 'dark' : 'light');
+  });
+  document.addEventListener('fullscreenchange', () => {
+    document.body.classList.toggle('fs', !!document.fullscreenElement);
+  });
+
+  const optAwake = $('#opt-keep-awake');
+  const optDim = $('#opt-dim-fs');
+  optAwake.checked = prefs.keepAwake;
+  optDim.checked = prefs.dimFs;
+  optAwake.addEventListener('change', () => {
+    prefs.keepAwake = optAwake.checked;
+    savePrefs();
+    if (prefs.keepAwake) ensureWakeLock();
+    else releaseWakeLock();
+  });
+  optDim.addEventListener('change', () => {
+    prefs.dimFs = optDim.checked;
+    savePrefs();
+    document.body.classList.toggle('dim-fs', prefs.dimFs);
+  });
 
   $('#class-chips').addEventListener('click', (e) => {
     const chip = e.target.closest('[data-class]');
@@ -654,13 +745,23 @@ function init() {
     renderStage();
   });
 
-  // Space / → / N / PageDown advance the activity (presenter-remote friendly).
+  // Shortcuts: Space / → / N / PageDown = next activity (presenter-remote
+  // friendly), F = fullscreen, D = dark mode, L = light mode.
   document.addEventListener('keydown', (e) => {
     if (!$('#settings-overlay').classList.contains('hidden')) return;
-    if (e.target.closest('input, select, textarea, button')) return;
-    if ([' ', 'n', 'N', 'ArrowRight', 'PageDown'].includes(e.key)) {
+    if (e.target.closest('input, select, textarea')) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const k = e.key;
+    const onButton = !!e.target.closest('button');
+    if ((k === ' ' && !onButton) || ['n', 'N', 'ArrowRight', 'PageDown'].includes(k)) {
       e.preventDefault();
       nextActivity();
+    } else if (k === 'f' || k === 'F') {
+      toggleFullscreen();
+    } else if (k === 'd' || k === 'D') {
+      setTheme('dark');
+    } else if (k === 'l' || k === 'L') {
+      setTheme('light');
     }
   });
 
@@ -671,6 +772,8 @@ function init() {
   });
 
   sanitizeRuntime();
+  applyTheme();
+  document.body.classList.toggle('dim-fs', prefs.dimFs);
   updateSoundButton();
   renderChips();
   renderStage();

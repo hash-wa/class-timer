@@ -14,6 +14,7 @@
     <div class="brand">⏱️ Class Timer</div>
     <div class="now" id="now-clock">—</div>
     <div class="topbar-actions">
+      <button id="btn-theme" class="icon-btn" title="Toggle light / dark (D / L)">☀️</button>
       <button id="btn-sound" class="icon-btn" title="Toggle end-of-activity chime">🔔</button>
       <button id="btn-fullscreen" class="icon-btn" title="Toggle fullscreen">⛶</button>
       <button id="btn-settings" class="btn ghost">⚙ Setup</button>
@@ -24,7 +25,7 @@
 
   <main id="stage"></main>
 
-  <footer class="hint">Space / → / N&nbsp;=&nbsp;Next Activity · Data is saved in this browser</footer>
+  <footer class="hint">Space / → / N&nbsp;=&nbsp;Next · F&nbsp;=&nbsp;Fullscreen · D / L&nbsp;=&nbsp;Dark / Light · Data is saved in this browser</footer>
 
   <div id="settings-overlay" class="overlay hidden">
     <div class="panel" role="dialog" aria-modal="true" aria-label="Setup">
@@ -47,6 +48,11 @@
           </div>
           <div id="classes-list"></div>
           <button id="btn-add-class" class="btn small">+ New class</button>
+        </section>
+        <section>
+          <h3>Display</h3>
+          <label class="check"><input type="checkbox" id="opt-keep-awake"> Keep screen on while the app is open</label>
+          <label class="check"><input type="checkbox" id="opt-dim-fs"> Dim the screen in fullscreen</label>
         </section>
         <section>
           <h3>Data</h3>
