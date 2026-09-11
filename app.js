@@ -906,7 +906,7 @@ function init() {
   });
 
   // Shortcuts: Space / → / N / PageDown = next activity (presenter-remote
-  // friendly), F = fullscreen, D = dark mode, L = light mode.
+  // friendly), ← / PageUp = back, F = fullscreen, D = toggle theme.
   document.addEventListener('keydown', (e) => {
     if (!$('#settings-overlay').classList.contains('hidden')) return;
     if (e.target.closest('input, select, textarea')) return;
@@ -922,9 +922,7 @@ function init() {
     } else if (k === 'f' || k === 'F') {
       toggleFullscreen();
     } else if (k === 'd' || k === 'D') {
-      setTheme('dark');
-    } else if (k === 'l' || k === 'L') {
-      setTheme('light');
+      setTheme(prefs.theme === 'light' ? 'dark' : 'light');
     }
   });
 

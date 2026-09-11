@@ -23,7 +23,7 @@ Once a class's time window has fully passed, the app shows a countdown to tomorr
 
 Handy extras:
 
-- Light and dark themes (toggle button, or **D** / **L** keys)
+- Light and dark themes (toggle button, or the **D** key)
 - Fullscreen for projection (**F** key) — the layout scales to fill the screen, with an optional "dim the screen in fullscreen" setting
 - "Keep screen on" option (screen wake-lock) so the display doesn't sleep mid-lesson
 - End-of-activity chime toggle
