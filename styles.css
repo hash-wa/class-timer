@@ -271,7 +271,6 @@ main {
   margin-bottom: 0.6rem;
 }
 
-.pre .btn { margin-top: 0.4rem; }
 
 /* ---------- Running activity ---------- */
 .activity { text-align: center; }
@@ -289,17 +288,6 @@ main {
 .act-label .drift.behind { color: var(--amber); }
 .act-label .drift.ahead { color: var(--green); }
 
-/* Shown below the bar so a long or wrapping name never pushes the
-   countdown out of its fixed position. */
-.act-name {
-  font-size: clamp(1.6rem, 5vw, 2.6rem);
-  font-weight: 700;
-  margin: 0 0 1rem;
-  background: var(--grad);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
 
 .bar {
   height: 1.4rem;
@@ -337,9 +325,7 @@ main {
 
 .adjust {
   display: flex;
-  justify-content: center;
   gap: 0.5rem;
-  margin: 0 0 1rem;
 }
 
 .adjust .btn { color: var(--muted); }
@@ -440,7 +426,6 @@ body.fs .class-remaining { font-size: clamp(1.15rem, 2.4vmin, 1.9rem); }
 body.fs .big { font-size: clamp(3.5rem, 26vmin, 24rem); }
 body.fs .pre-label,
 body.fs .act-label { font-size: clamp(0.85rem, 1.8vmin, 1.4rem); }
-body.fs .act-name { font-size: clamp(1.6rem, 7vmin, 5.5rem); }
 body.fs .at-edge { font-size: clamp(1.15rem, 2.4vmin, 1.9rem); }
 body.fs .bar { height: clamp(1.4rem, 3vmin, 2.6rem); }
 body.fs .next-up { font-size: clamp(1.05rem, 2.2vmin, 1.7rem); }
@@ -601,6 +586,7 @@ input[type="number"].in { width: 5rem; }
     padding: 0.6rem;
   }
   .act-foot { justify-content: center; }
+  .adjust { width: 100%; justify-content: center; }
   .foot-btns { width: 100%; flex-direction: column-reverse; }
   .foot-btns .btn { width: 100%; }
 }

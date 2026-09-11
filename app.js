@@ -379,27 +379,32 @@ function renderStage() {
           <span class="at-edge">${fmt12(cls.start)}</span>
         </div>
         <div class="bar"><div class="bar-fill" id="pre-bar-fill"></div></div>
-        ${acts.length ? '<button id="btn-start-now" class="btn ghost">Start now</button>' : '<p class="muted">This class has no activities yet — add some in Setup.</p>'}
+        ${acts.length ? `
+        <div class="act-foot">
+          <span class="next-up">First: ${esc(acts[0].name)} · ${fillsRest(cls, 0) ? 'rest of class' : `${acts[0].min} min`}</span>
+          <div class="foot-btns">
+            <button id="btn-start-now" class="btn primary">Start now ▸</button>
+          </div>
+        </div>` : '<p class="muted">This class has no activities yet — add some in Setup.</p>'}
       </div>`;
   } else {
     const a = acts[rt.index];
     const next = acts[rt.index + 1];
     body = `
       <div class="activity">
-        <div class="act-label">Activity ${rt.index + 1} of ${acts.length}<span id="drift"></span></div>
+        <div class="act-label">${esc(a.name)}<span id="drift"></span></div>
         <div class="at-row">
           <span class="at-edge" id="act-start">—</span>
           <div class="big" id="act-remaining">—</div>
           <span class="at-edge" id="act-end">—</span>
         </div>
         <div class="bar" id="bar"><div class="bar-fill" id="bar-fill"></div></div>
-        <div class="act-name">${esc(a.name)}</div>
-        <div class="adjust">
-          <button class="btn small" data-adj="-60000" title="Take a minute off this activity">−1 min</button>
-          <button class="btn small" data-adj="60000" title="Give this activity one more minute">+1 min</button>
-          <button class="btn small" data-adj="300000" title="Give this activity five more minutes">+5 min</button>
-        </div>
         <div class="act-foot">
+          <div class="adjust">
+            <button class="btn small" data-adj="-60000" title="Take a minute off this activity">−1 min</button>
+            <button class="btn small" data-adj="60000" title="Give this activity one more minute">+1 min</button>
+            <button class="btn small" data-adj="300000" title="Give this activity five more minutes">+5 min</button>
+          </div>
           <span class="next-up">${next ? `Next: ${esc(next.name)} · ${fillsRest(cls, rt.index + 1) ? 'rest of class' : `${next.min} min`}` : 'Last activity'}</span>
           <div class="foot-btns">
             ${rt.index > 0 ? '<button id="btn-back" class="btn ghost" title="Back to the previous activity">◂ Back</button>' : ''}
