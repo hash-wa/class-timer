@@ -228,6 +228,24 @@ main {
 }
 
 /* ---------- Big countdown ---------- */
+/* Activity timing row: start time · big countdown · projected end time,
+   mirroring the class progress labels above their bar. */
+.at-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.at-row .big { flex: 1; min-width: 0; }
+
+.at-edge {
+  font-variant-numeric: tabular-nums;
+  font-size: 1.15rem;
+  opacity: 0.55;
+  white-space: nowrap;
+}
+
 .big {
   font-size: clamp(3.5rem, 16vw, 10rem);
   font-weight: 800;
@@ -416,6 +434,7 @@ body.fs .big { font-size: clamp(3.5rem, 26vmin, 24rem); }
 body.fs .pre-label,
 body.fs .act-label { font-size: clamp(0.85rem, 1.8vmin, 1.4rem); }
 body.fs .act-name { font-size: clamp(1.6rem, 7vmin, 5.5rem); }
+body.fs .at-edge { font-size: clamp(1.15rem, 2.4vmin, 1.9rem); }
 body.fs .bar { height: clamp(1.4rem, 3vmin, 2.6rem); }
 body.fs .next-up { font-size: clamp(1.05rem, 2.2vmin, 1.7rem); }
 body.fs .btn.primary { font-size: clamp(1.25rem, 2.6vmin, 2rem); }

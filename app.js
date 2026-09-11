@@ -383,7 +383,11 @@ function renderStage() {
       <div class="activity">
         <div class="act-label">Activity ${rt.index + 1} of ${acts.length}<span id="drift"></span></div>
         <div class="act-name">${esc(a.name)}</div>
-        <div class="big" id="act-remaining">—</div>
+        <div class="at-row">
+          <span class="at-edge" id="act-start">—</span>
+          <div class="big" id="act-remaining">—</div>
+          <span class="at-edge" id="act-end">—</span>
+        </div>
         <div class="bar" id="bar"><div class="bar-fill" id="bar-fill"></div></div>
         <div class="adjust">
           <button class="btn small" data-adj="-60000" title="Take a minute off this activity">−1 min</button>
@@ -593,6 +597,13 @@ function updateDynamic() {
     const bar = $('#bar');
     const fill = $('#bar-fill');
     if (big && bar && fill) {
+      // Start / projected-end labels flanking the countdown, mirroring the
+      // class bar's start · remaining · end layout. The end shifts live with
+      // ±time adjustments.
+      const actStart = $('#act-start');
+      const actEnd = $('#act-end');
+      if (actStart) actStart.textContent = fmt12Date(new Date(rt.startedAt));
+      if (actEnd) actEnd.textContent = fmt12Date(new Date(rt.startedAt + durMs));
       if (remaining >= 0) {
         // Amber "wrap it up" phase for roughly the last 15% of the activity,
         // clamped between 30 s and 2 min.
