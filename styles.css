@@ -259,7 +259,9 @@ main {
 .big.warn { color: var(--amber); }
 
 /* ---------- Pre-start ---------- */
-.pre { text-align: center; padding: 1rem 0 1.5rem; }
+/* Structure mirrors the running activity block (label, at-row, bar) so the
+   countdown holds the same position before and during class. */
+.pre { text-align: center; }
 
 .pre-label {
   color: var(--muted);
@@ -269,7 +271,7 @@ main {
   margin-bottom: 0.6rem;
 }
 
-.pre .btn { margin-top: 1.2rem; }
+.pre .btn { margin-top: 0.4rem; }
 
 /* ---------- Running activity ---------- */
 .activity { text-align: center; }

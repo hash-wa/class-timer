@@ -372,8 +372,13 @@ function renderStage() {
     const missed = isMissedToday(cls, rt);
     body = `
       <div class="pre">
-        <div class="pre-label">Starts at ${fmt12(cls.start)}${missed ? ' tomorrow' : ''} — in</div>
-        <div class="big" id="pre-remaining">—</div>
+        <div class="pre-label">Starts ${missed ? 'tomorrow ' : ''}in</div>
+        <div class="at-row">
+          <span class="at-edge" id="pre-now">—</span>
+          <div class="big" id="pre-remaining">—</div>
+          <span class="at-edge">${fmt12(cls.start)}</span>
+        </div>
+        <div class="bar"><div class="bar-fill" id="pre-bar-fill"></div></div>
         ${acts.length ? '<button id="btn-start-now" class="btn ghost">Start now</button>' : '<p class="muted">This class has no activities yet — add some in Setup.</p>'}
       </div>`;
   } else {
@@ -585,6 +590,15 @@ function updateDynamic() {
     const target = missed ? start + 86400000 : start;
     const preRem = $('#pre-remaining');
     if (preRem) preRem.textContent = fmtDur(target - now);
+    const preNow = $('#pre-now');
+    if (preNow) preNow.textContent = fmt12Date(new Date(now));
+    const preFill = $('#pre-bar-fill');
+    if (preFill) {
+      // The pre-class bar fills across the final 30 minutes before start.
+      const LEAD = 30 * 60000;
+      const left = target - now;
+      preFill.style.width = (Math.min(1, Math.max(0, 1 - left / LEAD)) * 100).toFixed(2) + '%';
+    }
     title = `in ${fmtDur(target - now)} · ${cls.name}`;
   }
 
