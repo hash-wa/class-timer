@@ -311,16 +311,39 @@ function renderChips() {
 
 /* ================= Rendering: main stage ================= */
 
-function activityListHTML(cls, rt) {
+// One bar for the whole class: segments are sized by each activity's planned
+// share of the class duration; boundary times above them come from the live
+// projected schedule so they reflect drift and ±adjustments.
+function segBarHTML(cls) {
   const acts = setFor(cls).activities;
   if (!acts.length) return '';
-  return '<ol class="act-list">' + acts.map((a, i) => {
-    let state = '';
-    if (rt.done || (rt.index >= 0 && i < rt.index)) state = 'done';
-    else if (!rt.done && i === rt.index) state = 'current';
+  const durs = acts.map((a, i) => actPlannedMs(cls, i));
+  const total = durs.reduce((s, d) => s + d, 0) || 1;
+
+  const segs = acts.map((a, i) => {
+    const pct = (durs[i] / total) * 100;
     const minLabel = fillsRest(cls, i) ? 'rest of class' : `${a.min} min`;
-    return `<li class="${state}"><span class="al-name">${esc(a.name)}</span><span class="al-win" data-i="${i}"></span><span class="al-min">${minLabel}</span></li>`;
-  }).join('') + '</ol>';
+    return `
+      <div class="seg" data-i="${i}" style="flex-basis:${pct.toFixed(3)}%">
+        <div class="seg-fill" data-i="${i}"></div>
+        <div class="seg-label"><div class="seg-name">${esc(a.name)}</div><div class="seg-dur">${minLabel}</div></div>
+      </div>`;
+  }).join('');
+
+  let cum = 0;
+  const bounds = [0];
+  for (const d of durs) { cum += d; bounds.push(cum); }
+  const times = bounds.map((b, i) => {
+    const pct = (b / total) * 100;
+    const edge = i === 0 ? 'start' : i === bounds.length - 1 ? 'end' : 'mid';
+    return `<span class="seg-time ${edge}" data-i="${i}" style="left:${pct.toFixed(3)}%">—</span>`;
+  }).join('');
+
+  return `
+    <div class="segbar-wrap">
+      <div class="seg-times">${times}</div>
+      <div class="segbar" id="segbar">${segs}</div>
+    </div>`;
 }
 
 function renderStage() {
@@ -340,24 +363,12 @@ function renderStage() {
 
   const rt = rtFor(cls.id);
   const acts = setFor(cls).activities;
-  const start = startDate(cls);
-  const end = new Date(+start + classDurationMin(cls) * 60000);
 
   const head = `
     <div class="class-head">
       <h2 class="class-name">${esc(cls.name)}</h2>
-      <div class="class-side">
-        <div class="class-progress dim">
-          <div class="cp-labels">
-            <span>${fmt12(cls.start)}</span>
-            <span class="class-remaining" id="class-remaining">—</span>
-            <span>${fmt12Date(end)}</span>
-          </div>
-          <div class="cp-bar"><div class="cp-fill" id="class-bar-fill"></div></div>
-          <div class="now-inline" id="now-clock">—</div>
-        </div>
-        <button id="btn-restart" class="icon-btn bordered" title="Restart this class from the beginning">↺</button>
-      </div>
+      <div class="now-inline" id="now-clock">—</div>
+      <button id="btn-restart" class="icon-btn bordered" title="Restart this class from the beginning">↺</button>
     </div>`;
 
   let body;
@@ -366,19 +377,16 @@ function renderStage() {
       <div class="done">
         <div class="done-mark">✓</div>
         <div class="done-text">${esc(cls.name)} — all activities complete</div>
+        ${segBarHTML(cls)}
         ${rt.index >= 0 ? '<button id="btn-back" class="btn ghost" title="Back to the last activity">◂ Back</button>' : ''}
       </div>`;
   } else if (rt.index === -1) {
     const missed = isMissedToday(cls, rt);
     body = `
       <div class="pre">
-        <div class="pre-label">Starts ${missed ? 'tomorrow ' : ''}in</div>
-        <div class="at-row">
-          <span class="at-edge" id="pre-now">—</span>
-          <div class="big" id="pre-remaining">—</div>
-          <span class="at-edge">${fmt12(cls.start)}</span>
-        </div>
-        <div class="bar"><div class="bar-fill" id="pre-bar-fill"></div></div>
+        <div class="mini-label">Starts ${missed ? 'tomorrow ' : ''}in</div>
+        <div class="big" id="pre-remaining">—</div>
+        ${segBarHTML(cls)}
         ${acts.length ? `
         <div class="act-foot">
           <span class="next-up">First: ${esc(acts[0].name)} · ${fillsRest(cls, 0) ? 'rest of class' : `${acts[0].min} min`}</span>
@@ -388,17 +396,12 @@ function renderStage() {
         </div>` : '<p class="muted">This class has no activities yet — add some in Setup.</p>'}
       </div>`;
   } else {
-    const a = acts[rt.index];
     const next = acts[rt.index + 1];
     body = `
       <div class="activity">
-        <div class="act-label">${esc(a.name)}<span id="drift"></span></div>
-        <div class="at-row">
-          <span class="at-edge" id="act-start">—</span>
-          <div class="big" id="act-remaining">—</div>
-          <span class="at-edge" id="act-end">—</span>
-        </div>
-        <div class="bar" id="bar"><div class="bar-fill" id="bar-fill"></div></div>
+        <div class="mini-label" id="mini-label"><span id="drift"></span></div>
+        <div class="big" id="act-remaining">—</div>
+        ${segBarHTML(cls)}
         <div class="act-foot">
           <div class="adjust">
             <button class="btn small" data-adj="-60000" title="Take a minute off this activity">−1 min</button>
@@ -414,7 +417,7 @@ function renderStage() {
       </div>`;
   }
 
-  stage.innerHTML = `<section class="card">${head}${body}${activityListHTML(cls, rt)}</section>`;
+  stage.innerHTML = `<section class="card">${head}${body}</section>`;
 
   $('#btn-next')?.addEventListener('click', nextActivity);
   $('#btn-back')?.addEventListener('click', prevActivity);
@@ -563,29 +566,16 @@ function updateDynamic() {
   const rt = rtFor(cls.id);
   const now = Date.now();
   const start = +startDate(cls);
-  const end = start + classDurationMin(cls) * 60000;
   const missed = isMissedToday(cls, rt);
+  const acts = setFor(cls).activities;
   let title = 'Class Timer';
 
-  const classRem = $('#class-remaining');
-  const classFill = $('#class-bar-fill');
-  if (classRem && classFill) {
-    if (now < start || missed) {
-      classRem.textContent = fmtDur(end - start);
-      classRem.classList.remove('over');
-      classFill.style.width = '0%';
-    } else if (now <= end) {
-      classRem.textContent = fmtDur(end - now);
-      classRem.classList.remove('over');
-      classFill.style.width = end > start
-        ? (((now - start) / (end - start)) * 100).toFixed(2) + '%'
-        : '100%';
-    } else {
-      classRem.textContent = '+' + fmtDur(now - end);
-      classRem.classList.add('over');
-      classFill.style.width = '100%';
-    }
-  }
+  // Populated only while an activity is running; read by the segment loop
+  // below so the current segment's fill matches the big counter exactly.
+  let durMs = 0;
+  let elapsed = 0;
+  let warning = false;
+  let overdue = false;
 
   if (rt.done) {
     title = `✓ ${cls.name}`;
@@ -595,55 +585,27 @@ function updateDynamic() {
     const target = missed ? start + 86400000 : start;
     const preRem = $('#pre-remaining');
     if (preRem) preRem.textContent = fmtDur(target - now);
-    const preNow = $('#pre-now');
-    if (preNow) preNow.textContent = fmt12Date(new Date(now));
-    const preFill = $('#pre-bar-fill');
-    if (preFill) {
-      // The pre-class bar fills across the final 30 minutes before start.
-      const LEAD = 30 * 60000;
-      const left = target - now;
-      preFill.style.width = (Math.min(1, Math.max(0, 1 - left / LEAD)) * 100).toFixed(2) + '%';
-    }
     title = `in ${fmtDur(target - now)} · ${cls.name}`;
-  }
-
-  const acts = setFor(cls).activities;
-  if (rt.index >= 0 && !rt.done && acts[rt.index]) {
-    const durMs = activityDurMs(cls, rt);
-    const elapsed = now - rt.startedAt;
+  } else if (acts[rt.index]) {
+    durMs = activityDurMs(cls, rt);
+    elapsed = now - rt.startedAt;
     const remaining = durMs - elapsed;
+    overdue = remaining < 0;
     const big = $('#act-remaining');
-    const bar = $('#bar');
-    const fill = $('#bar-fill');
-    if (big && bar && fill) {
-      // Start / projected-end labels flanking the countdown, mirroring the
-      // class bar's start · remaining · end layout. The end shifts live with
-      // ±time adjustments.
-      const actStart = $('#act-start');
-      const actEnd = $('#act-end');
-      if (actStart) actStart.textContent = fmt12Date(new Date(rt.startedAt));
-      if (actEnd) actEnd.textContent = fmt12Date(new Date(rt.startedAt + durMs));
-      if (remaining >= 0) {
+    if (big) {
+      if (!overdue) {
         // Amber "wrap it up" phase for roughly the last 15% of the activity,
         // clamped between 30 s and 2 min.
         const warnMs = Math.min(120000, Math.max(30000, durMs * 0.15));
-        const warning = remaining <= warnMs;
+        warning = remaining <= warnMs;
         big.textContent = fmtDur(remaining);
         big.classList.remove('over');
         big.classList.toggle('warn', warning);
-        bar.classList.remove('overdue');
-        bar.classList.toggle('warning', warning);
-        fill.style.width = durMs > 0
-          ? Math.min(100, (elapsed / durMs) * 100).toFixed(2) + '%'
-          : '100%';
         title = `${fmtDur(remaining)} · ${acts[rt.index].name}`;
       } else {
         big.textContent = '+' + fmtDur(-remaining);
         big.classList.add('over');
         big.classList.remove('warn');
-        bar.classList.add('overdue');
-        bar.classList.remove('warning');
-        fill.style.width = '100%';
         title = `⏰ +${fmtDur(-remaining)} · ${acts[rt.index].name}`;
         const key = cls.id + ':' + rt.index;
         if (!beeped.has(key)) {
@@ -654,22 +616,42 @@ function updateDynamic() {
     }
   }
 
-  // Live projected clock windows per activity, plus overall drift.
-  const proj = projectSchedule(cls, rt, now);
-  document.querySelectorAll('#stage .al-win').forEach((el) => {
-    const w = proj.win[Number(el.dataset.i)];
-    el.textContent = w && Number.isFinite(w.s) && Number.isFinite(w.e)
-      ? `${fmtHM(w.s)}–${fmtHM(w.e)}`
-      : '';
-  });
-  const driftEl = $('#drift');
-  if (driftEl) {
-    const mins = Math.round(proj.drift / 60000);
-    if (Math.abs(mins) >= 1) {
-      driftEl.textContent = ` · ${Math.abs(mins)} min ${mins > 0 ? 'behind' : 'ahead'}`;
-      driftEl.className = 'drift ' + (mins > 0 ? 'behind' : 'ahead');
-    } else {
-      driftEl.textContent = '';
+  // Segmented class bar: live projected boundary times, and each segment's
+  // fill / done / current / warning / overdue state.
+  if (acts.length) {
+    const proj = projectSchedule(cls, rt, now);
+    document.querySelectorAll('#stage .seg-time').forEach((el) => {
+      const i = Number(el.dataset.i);
+      const t = i < acts.length ? proj.win[i].s : proj.win[acts.length - 1].e;
+      el.textContent = Number.isFinite(t) ? fmtHM(t) : '—';
+    });
+    document.querySelectorAll('#stage .seg').forEach((seg) => {
+      const i = Number(seg.dataset.i);
+      const fill = seg.querySelector('.seg-fill');
+      seg.classList.remove('done', 'current', 'warning', 'overdue');
+      if (rt.done || (rt.index >= 0 && i < rt.index)) {
+        seg.classList.add('done');
+        fill.style.width = '100%';
+      } else if (!rt.done && i === rt.index) {
+        seg.classList.add('current');
+        if (overdue) seg.classList.add('overdue');
+        else if (warning) seg.classList.add('warning');
+        fill.style.width = overdue
+          ? '100%'
+          : durMs > 0 ? Math.min(100, (elapsed / durMs) * 100).toFixed(2) + '%' : '100%';
+      } else {
+        fill.style.width = '0%';
+      }
+    });
+    const driftEl = $('#drift');
+    if (driftEl) {
+      const mins = Math.round(proj.drift / 60000);
+      if (rt.index >= 0 && !rt.done && Math.abs(mins) >= 1) {
+        driftEl.textContent = `${Math.abs(mins)} min ${mins > 0 ? 'behind' : 'ahead'}`;
+        driftEl.className = 'drift ' + (mins > 0 ? 'behind' : 'ahead');
+      } else {
+        driftEl.textContent = '';
+      }
     }
   }
 

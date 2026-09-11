@@ -170,82 +170,19 @@ main {
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 0.7rem 1.2rem;
-  margin-bottom: 1.4rem;
+  gap: 0.5rem 1rem;
+  margin-bottom: 1.2rem;
 }
 
 .class-name { font-size: 1.5rem; font-weight: 700; }
 
-/* Live clock, centered under the class progress bar. Full text color: the
-   parent .dim already fades it to match the rest of the corner block. */
 .now-inline {
-  margin-top: 0.4rem;
-  text-align: center;
+  color: var(--muted);
   font-variant-numeric: tabular-nums;
-  color: var(--text);
   font-size: 1.05rem;
 }
 
-/* Class-level progress (top right) */
-.class-side {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  flex: 0 1 auto;
-  justify-content: flex-end;
-}
-
-.class-progress { width: min(19rem, 100%); }
-
-.dim { opacity: 0.55; }
-
-.cp-labels {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 0.8rem;
-  font-variant-numeric: tabular-nums;
-  font-size: 0.9rem;
-  margin-bottom: 0.3rem;
-}
-
-.class-remaining { font-weight: 700; font-size: 1.15rem; }
-.class-remaining.over { color: var(--red); }
-
-.cp-bar {
-  height: 0.45rem;
-  border-radius: 999px;
-  background: var(--track);
-  overflow: hidden;
-}
-
-.cp-fill {
-  height: 100%;
-  width: 0%;
-  border-radius: inherit;
-  background: var(--grad);
-  transition: width 0.25s linear;
-}
-
 /* ---------- Big countdown ---------- */
-/* Activity timing row: start time · big countdown · projected end time,
-   mirroring the class progress labels above their bar. */
-.at-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.8rem;
-}
-
-.at-row .big { flex: 1; min-width: 0; }
-
-.at-edge {
-  font-variant-numeric: tabular-nums;
-  font-size: 1.15rem;
-  opacity: 0.55;
-  white-space: nowrap;
-}
-
 .big {
   font-size: clamp(3.5rem, 16vw, 10rem);
   font-weight: 800;
@@ -258,12 +195,13 @@ main {
 .big.over { color: var(--red); }
 .big.warn { color: var(--amber); }
 
-/* ---------- Pre-start ---------- */
-/* Structure mirrors the running activity block (label, at-row, bar) so the
-   countdown holds the same position before and during class. */
-.pre { text-align: center; }
+/* ---------- Pre-start / running ---------- */
+.pre, .activity { text-align: center; }
 
-.pre-label {
+/* Fixed-height slot above the big counter (blank, "Starts in", or the
+   drift note) so the counter never shifts position between states. */
+.mini-label {
+  min-height: 1.35rem;
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.15em;
@@ -271,50 +209,96 @@ main {
   margin-bottom: 0.6rem;
 }
 
+.mini-label .drift.behind { color: var(--amber); }
+.mini-label .drift.ahead { color: var(--green); }
 
-/* ---------- Running activity ---------- */
-.activity { text-align: center; }
+/* ---------- Segmented class bar ---------- */
+.segbar-wrap { margin: 1.2rem 0 1.3rem; }
 
-/* Matches .pre-label so the countdown sits at the same height before and
-   during class. */
-.act-label {
+.seg-times {
+  position: relative;
+  height: 1.3rem;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
   color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.15em;
-  font-size: 0.9rem;
-  margin-bottom: 0.6rem;
 }
 
-.act-label .drift.behind { color: var(--amber); }
-.act-label .drift.ahead { color: var(--green); }
+.seg-time {
+  position: absolute;
+  top: 0;
+  white-space: nowrap;
+}
 
+.seg-time.start { transform: translateX(0); }
+.seg-time.mid { transform: translateX(-50%); }
+.seg-time.end { transform: translateX(-100%); }
 
-.bar {
-  height: 1.4rem;
-  border-radius: 999px;
+.segbar {
+  display: flex;
+  height: 3.4rem;
+  border-radius: 0.9rem;
   background: var(--track);
   border: 1px solid var(--card-border);
   overflow: hidden;
-  margin: 1.2rem 0 0.9rem;
 }
 
-.bar-fill {
+.seg {
+  position: relative;
+  flex-grow: 0;
+  flex-shrink: 0;
   height: 100%;
+  border-right: 1px solid var(--card-border);
+}
+
+.seg:last-child { border-right: none; }
+
+.seg-fill {
+  position: absolute;
+  inset: 0;
   width: 0%;
-  border-radius: inherit;
   background: var(--grad);
-  box-shadow: 0 0 18px rgba(59, 130, 246, 0.55);
   transition: width 0.25s linear;
 }
 
-.bar.warning .bar-fill {
-  background: linear-gradient(90deg, #f59e0b, #fbbf24);
-  box-shadow: 0 0 18px rgba(245, 158, 11, 0.55);
+.seg-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.3rem;
+  color: var(--text);
+  text-shadow: 0 0 4px var(--bg), 0 0 9px var(--bg);
 }
 
-.bar.overdue .bar-fill {
+.seg-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+  line-height: 1.2;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.seg-dur {
+  font-size: 0.72rem;
+  opacity: 0.8;
+  margin-top: 0.1rem;
+}
+
+.seg.done .seg-fill { opacity: 0.55; }
+.seg.done .seg-label { opacity: 0.65; }
+
+.seg.current .seg-label { font-weight: 700; }
+
+.seg.warning .seg-fill {
+  background: linear-gradient(90deg, #f59e0b, #fbbf24);
+}
+
+.seg.overdue .seg-fill {
   background: var(--grad-hot);
-  box-shadow: 0 0 18px rgba(244, 63, 94, 0.6);
   animation: blink 0.45s ease-in-out infinite alternate;
 }
 
@@ -358,50 +342,6 @@ main {
 .done-text { font-size: 1.4rem; margin: 0.6rem 0 1.2rem; color: var(--muted); }
 .done .btn { margin-top: 0.4rem; }
 
-/* ---------- Activity list ---------- */
-.act-list {
-  list-style: none;
-  margin-top: 1.6rem;
-  border-top: 1px solid var(--card-border);
-  padding-top: 0.9rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-}
-
-.act-list li {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.35rem 0.6rem;
-  border-radius: 0.5rem;
-  color: var(--muted);
-  font-size: 1rem;
-}
-
-.act-list li::before { content: "○"; margin-right: 0.6rem; opacity: 0.6; }
-
-.act-list li .al-name { flex: 1; text-align: left; }
-
-.act-list li.done { opacity: 0.45; text-decoration: line-through; }
-.act-list li.done::before { content: "✓"; color: var(--green); }
-
-.act-list li.current {
-  color: var(--text);
-  background: rgba(139, 92, 246, 0.14);
-  font-weight: 600;
-}
-
-.act-list li.current::before { content: "▶"; color: var(--accent-c); }
-
-.al-min { font-variant-numeric: tabular-nums; }
-
-.al-win {
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-  font-size: 0.92em;
-}
-
 /* ---------- Onboarding ---------- */
 .onboarding { text-align: center; padding: 2.5rem 1rem; }
 .onboarding h2 { margin-bottom: 0.8rem; }
@@ -416,24 +356,24 @@ main {
   opacity: 0.7;
 }
 
-/* ---------- Fullscreen: scale everything to the screen ---------- */
+/* ---------- Fullscreen: only the card, scaled to the screen ---------- */
+body.fs .topbar,
+body.fs .chips,
+body.fs .hint { display: none; }
 body.fs main { align-items: center; }
 body.fs .card { width: min(96vw, 120rem); }
 body.fs .class-name { font-size: clamp(1.5rem, 4vmin, 3rem); }
 body.fs .now-inline { font-size: clamp(1.05rem, 2.2vmin, 1.8rem); }
-body.fs .cp-labels { font-size: clamp(0.9rem, 1.8vmin, 1.4rem); }
-body.fs .class-remaining { font-size: clamp(1.15rem, 2.4vmin, 1.9rem); }
 body.fs .big { font-size: clamp(3.5rem, 26vmin, 24rem); }
-body.fs .pre-label,
-body.fs .act-label { font-size: clamp(0.85rem, 1.8vmin, 1.4rem); }
-body.fs .at-edge { font-size: clamp(1.15rem, 2.4vmin, 1.9rem); }
-body.fs .bar { height: clamp(1.4rem, 3vmin, 2.6rem); }
+body.fs .mini-label { font-size: clamp(0.85rem, 1.8vmin, 1.4rem); }
+body.fs .segbar { height: clamp(3.4rem, 9vmin, 6.5rem); }
+body.fs .seg-time { font-size: clamp(0.85rem, 1.8vmin, 1.4rem); }
+body.fs .seg-name { font-size: clamp(0.95rem, 2.4vmin, 1.8rem); }
+body.fs .seg-dur { font-size: clamp(0.75rem, 1.6vmin, 1.2rem); }
 body.fs .next-up { font-size: clamp(1.05rem, 2.2vmin, 1.7rem); }
 body.fs .btn.primary { font-size: clamp(1.25rem, 2.6vmin, 2rem); }
 body.fs .adjust .btn { font-size: clamp(0.9rem, 1.8vmin, 1.4rem); }
-body.fs .act-list li { font-size: clamp(1rem, 2.2vmin, 1.7rem); }
 body.fs .done-mark { font-size: clamp(4.5rem, 16vmin, 12rem); }
-body.fs .hint { display: none; }
 
 /* Optional dimming while in fullscreen */
 body.fs.dim-fs::after {
