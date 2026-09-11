@@ -317,7 +317,6 @@ main {
 .act-foot {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   flex-wrap: wrap;
   gap: 0.8rem;
 }
@@ -326,6 +325,7 @@ main {
   display: flex;
   gap: 0.6rem;
   align-items: center;
+  margin-left: auto;
 }
 
 .next-up { color: var(--muted); font-size: 1.05rem; }

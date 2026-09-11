@@ -97,10 +97,10 @@ function isMissedToday(cls, rt) {
   return rt.index === -1 && !rt.done && Date.now() >= classEndMs(cls);
 }
 
-// The last activity stretches to the class end time when an explicit class
-// duration is set; every other activity uses its own duration.
+// The last activity always absorbs whatever the earlier activities ran
+// under or over, so the class still lines up with classDurationMin.
 function fillsRest(cls, i) {
-  return cls.durationMin > 0 && i === setFor(cls).activities.length - 1;
+  return i === setFor(cls).activities.length - 1;
 }
 
 function activityDurMs(cls, rt) {
@@ -109,7 +109,7 @@ function activityDurMs(cls, rt) {
   if (!a) return 0;
   const adjust = (rt.adjusts && rt.adjusts[rt.index]) || 0;
   const base = fillsRest(cls, rt.index)
-    ? Math.max(0, +startDate(cls) + cls.durationMin * 60000 - rt.startedAt)
+    ? Math.max(0, +startDate(cls) + classDurationMin(cls) * 60000 - rt.startedAt)
     : a.min * 60000;
   return Math.max(0, base + adjust);
 }
@@ -120,7 +120,7 @@ function actPlannedMs(cls, i) {
   const acts = setFor(cls).activities;
   if (fillsRest(cls, i)) {
     const others = acts.reduce((sum, a, j) => (j === i ? sum : sum + (a.min || 0)), 0);
-    return Math.max(0, cls.durationMin - others) * 60000;
+    return Math.max(0, classDurationMin(cls) - others) * 60000;
   }
   return (acts[i] ? acts[i].min : 0) * 60000;
 }
@@ -389,7 +389,7 @@ function renderStage() {
         ${segBarHTML(cls)}
         ${acts.length ? `
         <div class="act-foot">
-          <span class="next-up">First: ${esc(acts[0].name)} · ${fillsRest(cls, 0) ? 'rest of class' : `${acts[0].min} min`}</span>
+          <span class="next-up" id="first-hint">First: ${esc(acts[0].name)} · ${fillsRest(cls, 0) ? 'rest of class' : `${acts[0].min} min`}</span>
           <div class="foot-btns">
             <button id="btn-start-now" class="btn primary">Start now ▸</button>
           </div>
@@ -408,7 +408,7 @@ function renderStage() {
             <button class="btn small" data-adj="60000" title="Give this activity one more minute">+1 min</button>
             <button class="btn small" data-adj="300000" title="Give this activity five more minutes">+5 min</button>
           </div>
-          <span class="next-up">${next ? `Next: ${esc(next.name)} · ${fillsRest(cls, rt.index + 1) ? 'rest of class' : `${next.min} min`}` : 'Last activity'}</span>
+          <span class="next-up" id="next-hint" data-has-next="${next ? '1' : '0'}">${next ? `Next: ${esc(next.name)} · ${fillsRest(cls, rt.index + 1) ? 'rest of class' : `${next.min} min`}` : 'Last activity'}</span>
           <div class="foot-btns">
             ${rt.index > 0 ? '<button id="btn-back" class="btn ghost" title="Back to the previous activity">◂ Back</button>' : ''}
             <button id="btn-next" class="btn primary">${next ? 'Next Activity ▸' : 'Finish Class ✓'}</button>
@@ -616,17 +616,30 @@ function updateDynamic() {
     }
   }
 
-  // Segmented class bar: live projected boundary times, and each segment's
-  // fill / done / current / warning / overdue state.
+  // Segmented class bar: every segment's width and boundary position come
+  // from the live projected schedule, not the original plan. Completed
+  // segments use their real recorded duration; the last segment absorbs
+  // whatever that leaves so the bar always spans exactly 0–100%. This is
+  // why an activity ending early pushes everything after it left (and
+  // widens the last segment), while ending late pushes things right (and
+  // shrinks the last segment).
   if (acts.length) {
     const proj = projectSchedule(cls, rt, now);
+    const n = acts.length;
+    const origin = proj.win[0].s;
+    const total = Math.max(1, proj.win[n - 1].e - origin);
+    const TINY_PCT = 12; // below this, a segment can't fit its own label
+
     document.querySelectorAll('#stage .seg-time').forEach((el) => {
       const i = Number(el.dataset.i);
-      const t = i < acts.length ? proj.win[i].s : proj.win[acts.length - 1].e;
+      const t = i < n ? proj.win[i].s : proj.win[n - 1].e;
       el.textContent = Number.isFinite(t) ? fmtHM(t) : '—';
+      el.style.left = (Math.max(0, Math.min(total, t - origin)) / total * 100).toFixed(3) + '%';
     });
     document.querySelectorAll('#stage .seg').forEach((seg) => {
       const i = Number(seg.dataset.i);
+      const w = proj.win[i];
+      seg.style.flexBasis = (Math.max(0, w.e - w.s) / total * 100).toFixed(3) + '%';
       const fill = seg.querySelector('.seg-fill');
       seg.classList.remove('done', 'current', 'warning', 'overdue');
       if (rt.done || (rt.index >= 0 && i < rt.index)) {
@@ -643,6 +656,26 @@ function updateDynamic() {
         fill.style.width = '0%';
       }
     });
+
+    // The bar already shows each activity's name/duration once its segment
+    // is wide enough to hold them; the "First/Next: ..." hint only needs to
+    // step in as a fallback for a segment too narrow for its own label.
+    const firstHint = document.getElementById('first-hint');
+    if (firstHint) {
+      const pct = (proj.win[0].e - proj.win[0].s) / total * 100;
+      firstHint.style.display = pct < TINY_PCT ? '' : 'none';
+    }
+    const nextHint = document.getElementById('next-hint');
+    if (nextHint) {
+      if (nextHint.dataset.hasNext === '1') {
+        const w = proj.win[rt.index + 1];
+        const pct = w ? (w.e - w.s) / total * 100 : 100;
+        nextHint.style.display = pct < TINY_PCT ? '' : 'none';
+      } else {
+        nextHint.style.display = '';
+      }
+    }
+
     const driftEl = $('#drift');
     if (driftEl) {
       const mins = Math.round(proj.drift / 60000);
