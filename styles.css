@@ -274,20 +274,25 @@ main {
 /* ---------- Running activity ---------- */
 .activity { text-align: center; }
 
+/* Matches .pre-label so the countdown sits at the same height before and
+   during class. */
 .act-label {
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.15em;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
+  margin-bottom: 0.6rem;
 }
 
 .act-label .drift.behind { color: var(--amber); }
 .act-label .drift.ahead { color: var(--green); }
 
+/* Shown below the bar so a long or wrapping name never pushes the
+   countdown out of its fixed position. */
 .act-name {
   font-size: clamp(1.6rem, 5vw, 2.6rem);
   font-weight: 700;
-  margin: 0.3rem 0 0.4rem;
+  margin: 0 0 1rem;
   background: var(--grad);
   -webkit-background-clip: text;
   background-clip: text;
@@ -300,7 +305,7 @@ main {
   background: var(--track);
   border: 1px solid var(--card-border);
   overflow: hidden;
-  margin: 1.2rem 0 1.1rem;
+  margin: 1.2rem 0 0.9rem;
 }
 
 .bar-fill {
@@ -332,7 +337,7 @@ main {
   display: flex;
   justify-content: center;
   gap: 0.5rem;
-  margin: -0.2rem 0 1rem;
+  margin: 0 0 1rem;
 }
 
 .adjust .btn { color: var(--muted); }

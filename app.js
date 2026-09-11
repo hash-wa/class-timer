@@ -382,13 +382,13 @@ function renderStage() {
     body = `
       <div class="activity">
         <div class="act-label">Activity ${rt.index + 1} of ${acts.length}<span id="drift"></span></div>
-        <div class="act-name">${esc(a.name)}</div>
         <div class="at-row">
           <span class="at-edge" id="act-start">—</span>
           <div class="big" id="act-remaining">—</div>
           <span class="at-edge" id="act-end">—</span>
         </div>
         <div class="bar" id="bar"><div class="bar-fill" id="bar-fill"></div></div>
+        <div class="act-name">${esc(a.name)}</div>
         <div class="adjust">
           <button class="btn small" data-adj="-60000" title="Take a minute off this activity">−1 min</button>
           <button class="btn small" data-adj="60000" title="Give this activity one more minute">+1 min</button>
