@@ -92,6 +92,16 @@ function classEndMs(cls) {
   return +startDate(cls) + classDurationMin(cls) * 60000;
 }
 
+// classEndMs() is pinned to the *scheduled* start. Once a class has actually
+// begun, "how much time is left overall" needs to be measured from when it
+// really started — otherwise starting even moderately late (manually, before
+// or after the scheduled time) silently eats into the last activity's own
+// budget, on top of whatever it absorbs from drift during the class itself.
+function actualClassEndMs(cls, rt) {
+  const actualStart = rt.starts && rt.starts[0] != null ? rt.starts[0] : +startDate(cls);
+  return actualStart + classDurationMin(cls) * 60000;
+}
+
 // True when today's class window has fully passed and the class was never run.
 function isMissedToday(cls, rt) {
   return rt.index === -1 && !rt.done && Date.now() >= classEndMs(cls);
@@ -109,7 +119,7 @@ function activityDurMs(cls, rt) {
   if (!a) return 0;
   const adjust = (rt.adjusts && rt.adjusts[rt.index]) || 0;
   const base = fillsRest(cls, rt.index)
-    ? Math.max(0, +startDate(cls) + classDurationMin(cls) * 60000 - rt.startedAt)
+    ? Math.max(0, actualClassEndMs(cls, rt) - rt.startedAt)
     : a.min * 60000;
   return Math.max(0, base + adjust);
 }
@@ -134,7 +144,7 @@ function projectSchedule(cls, rt, now) {
   const win = new Array(n);
   if (!n) return { win, drift: 0 };
 
-  const classEnd = classEndMs(cls);
+  const classEnd = actualClassEndMs(cls, rt);
   const planned = new Array(n + 1);
   let p = +startDate(cls);
   for (let i = 0; i < n; i++) { planned[i] = p; p += actPlannedMs(cls, i); }
