@@ -357,12 +357,12 @@ function fmt12Date(d) {
   return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
-// Compact clock time without AM/PM, seconds shown as a small top-aligned
-// group next to the minute (for the per-activity boundary times).
-function fmtHMSmallSecHTML(t) {
+// Compact clock time without AM/PM, for the progress bar's boundary times
+// (no seconds — those stay reserved for each activity's own duration).
+function fmtHM(t) {
   const d = t instanceof Date ? t : new Date(t);
   const h = d.getHours() % 12 || 12;
-  return `${h}:${pad(d.getMinutes())}<span class="small-sec">${pad(d.getSeconds())}</span>`;
+  return `${h}:${pad(d.getMinutes())}`;
 }
 
 /* ================= Sound ================= */
@@ -816,7 +816,7 @@ function updateDynamic() {
     document.querySelectorAll('#stage .seg-time').forEach((el) => {
       const i = Number(el.dataset.i);
       const t = i < n ? proj.win[i].s : proj.win[n - 1].e;
-      el.innerHTML = Number.isFinite(t) ? fmtHMSmallSecHTML(t) : '—';
+      el.textContent = Number.isFinite(t) ? fmtHM(t) : '—';
       el.style.left = cumPct[i].toFixed(3) + '%';
     });
     document.querySelectorAll('#stage .seg').forEach((seg) => {
