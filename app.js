@@ -1027,9 +1027,9 @@ function init() {
       toggleFullscreen();
     } else if (k === 'd' || k === 'D') {
       setTheme(prefs.theme === 'light' ? 'dark' : 'light');
-    } else if (k === '+' || e.code === 'NumpadAdd' || (e.shiftKey && e.code === 'Equal')) {
-      // On some keyboard layouts Shift+"=" doesn't reliably report e.key
-      // as "+", so the physical key (e.code) is checked too.
+    } else if (k === '+' || e.code === 'NumpadAdd' || e.code === 'Equal') {
+      // Match the physical +/= key regardless of Shift, the same way the
+      // Minus key below is matched regardless of Shift producing "_".
       e.preventDefault();
       adjustCurrent(60000);
     } else if (k === '-' || e.code === 'NumpadSubtract' || e.code === 'Minus') {
