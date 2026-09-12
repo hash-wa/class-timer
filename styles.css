@@ -99,6 +99,33 @@ body {
 .btn.small { padding: 0.4rem 0.8rem; font-size: 0.9rem; }
 .btn.danger { color: var(--red); border-color: rgba(225, 60, 90, 0.4); }
 
+/* Round -1/+1/+5 steppers */
+.time-btn {
+  width: 2.6rem;
+  height: 2.6rem;
+  padding: 0;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+/* Round primary call-to-action (Start now / Next Activity / Finish Class) */
+.btn.primary.cta-circle {
+  width: 4.2rem;
+  height: 4.2rem;
+  padding: 0;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.7rem;
+  line-height: 1;
+}
+
 .icon-btn {
   font: inherit;
   color: var(--text);
@@ -328,8 +355,6 @@ main {
   margin-left: auto;
 }
 
-.next-up { color: var(--muted); font-size: 1.05rem; }
-
 /* ---------- Done ---------- */
 .done { text-align: center; padding: 1.5rem 0; }
 
@@ -370,9 +395,17 @@ body.fs .segbar { height: clamp(3.4rem, 9vmin, 6.5rem); }
 body.fs .seg-time { font-size: clamp(0.85rem, 1.8vmin, 1.4rem); }
 body.fs .seg-name { font-size: clamp(0.95rem, 2.4vmin, 1.8rem); }
 body.fs .seg-dur { font-size: clamp(0.75rem, 1.6vmin, 1.2rem); }
-body.fs .next-up { font-size: clamp(1.05rem, 2.2vmin, 1.7rem); }
 body.fs .btn.primary { font-size: clamp(1.25rem, 2.6vmin, 2rem); }
-body.fs .adjust .btn { font-size: clamp(0.9rem, 1.8vmin, 1.4rem); }
+body.fs .time-btn {
+  width: clamp(2.6rem, 5.5vmin, 4rem);
+  height: clamp(2.6rem, 5.5vmin, 4rem);
+  font-size: clamp(0.9rem, 1.8vmin, 1.4rem);
+}
+body.fs .btn.primary.cta-circle {
+  width: clamp(4.2rem, 9vmin, 7rem);
+  height: clamp(4.2rem, 9vmin, 7rem);
+  font-size: clamp(1.7rem, 4vmin, 3rem);
+}
 body.fs .done-mark { font-size: clamp(4.5rem, 16vmin, 12rem); }
 
 /* Optional dimming while in fullscreen */
@@ -527,6 +560,6 @@ input[type="number"].in { width: 5rem; }
   }
   .act-foot { justify-content: center; }
   .adjust { width: 100%; justify-content: center; }
-  .foot-btns { width: 100%; flex-direction: column-reverse; }
-  .foot-btns .btn { width: 100%; }
+  .foot-btns { width: 100%; flex-direction: column-reverse; align-items: center; }
+  .foot-btns .btn:not(.cta-circle) { width: 100%; }
 }

@@ -322,11 +322,10 @@ function segBarHTML(cls) {
 
   const segs = acts.map((a, i) => {
     const pct = (durs[i] / total) * 100;
-    const minLabel = fillsRest(cls, i) ? 'rest of class' : `${a.min} min`;
     return `
       <div class="seg" data-i="${i}" style="flex-basis:${pct.toFixed(3)}%">
         <div class="seg-fill" data-i="${i}"></div>
-        <div class="seg-label"><div class="seg-name">${esc(a.name)}</div><div class="seg-dur">${minLabel}</div></div>
+        <div class="seg-label"><div class="seg-name">${esc(a.name)}</div><div class="seg-dur" data-i="${i}">${Math.round(durs[i] / 60000)} min</div></div>
       </div>`;
   }).join('');
 
@@ -389,9 +388,8 @@ function renderStage() {
         ${segBarHTML(cls)}
         ${acts.length ? `
         <div class="act-foot">
-          <span class="next-up" id="first-hint">First: ${esc(acts[0].name)} · ${fillsRest(cls, 0) ? 'rest of class' : `${acts[0].min} min`}</span>
           <div class="foot-btns">
-            <button id="btn-start-now" class="btn primary">Start now ▸</button>
+            <button id="btn-start-now" class="btn primary cta-circle" title="Start now" aria-label="Start now">▸</button>
           </div>
         </div>` : '<p class="muted">This class has no activities yet — add some in Setup.</p>'}
       </div>`;
@@ -404,14 +402,13 @@ function renderStage() {
         ${segBarHTML(cls)}
         <div class="act-foot">
           <div class="adjust">
-            <button class="btn small" data-adj="-60000" title="Take a minute off this activity">−1 min</button>
-            <button class="btn small" data-adj="60000" title="Give this activity one more minute">+1 min</button>
-            <button class="btn small" data-adj="300000" title="Give this activity five more minutes">+5 min</button>
+            <button class="btn time-btn" data-adj="-60000" title="Take a minute off this activity" aria-label="Take a minute off this activity">−1</button>
+            <button class="btn time-btn" data-adj="60000" title="Give this activity one more minute" aria-label="Give this activity one more minute">+1</button>
+            <button class="btn time-btn" data-adj="300000" title="Give this activity five more minutes" aria-label="Give this activity five more minutes">+5</button>
           </div>
-          <span class="next-up" id="next-hint" data-has-next="${next ? '1' : '0'}">${next ? `Next: ${esc(next.name)} · ${fillsRest(cls, rt.index + 1) ? 'rest of class' : `${next.min} min`}` : 'Last activity'}</span>
           <div class="foot-btns">
             ${rt.index > 0 ? '<button id="btn-back" class="btn ghost" title="Back to the previous activity">◂ Back</button>' : ''}
-            <button id="btn-next" class="btn primary">${next ? 'Next Activity ▸' : 'Finish Class ✓'}</button>
+            <button id="btn-next" class="btn primary cta-circle" title="${next ? 'Next Activity' : 'Finish Class'}" aria-label="${next ? 'Next Activity' : 'Finish Class'}">${next ? '▸' : '✓'}</button>
           </div>
         </div>
       </div>`;
@@ -628,7 +625,6 @@ function updateDynamic() {
     const n = acts.length;
     const origin = proj.win[0].s;
     const total = Math.max(1, proj.win[n - 1].e - origin);
-    const TINY_PCT = 12; // below this, a segment can't fit its own label
 
     document.querySelectorAll('#stage .seg-time').forEach((el) => {
       const i = Number(el.dataset.i);
@@ -639,7 +635,10 @@ function updateDynamic() {
     document.querySelectorAll('#stage .seg').forEach((seg) => {
       const i = Number(seg.dataset.i);
       const w = proj.win[i];
-      seg.style.flexBasis = (Math.max(0, w.e - w.s) / total * 100).toFixed(3) + '%';
+      const durationMs = Math.max(0, w.e - w.s);
+      seg.style.flexBasis = (durationMs / total * 100).toFixed(3) + '%';
+      const dur = seg.querySelector('.seg-dur');
+      if (dur) dur.textContent = `${Math.round(durationMs / 60000)} min`;
       const fill = seg.querySelector('.seg-fill');
       seg.classList.remove('done', 'current', 'warning', 'overdue');
       if (rt.done || (rt.index >= 0 && i < rt.index)) {
@@ -656,25 +655,6 @@ function updateDynamic() {
         fill.style.width = '0%';
       }
     });
-
-    // The bar already shows each activity's name/duration once its segment
-    // is wide enough to hold them; the "First/Next: ..." hint only needs to
-    // step in as a fallback for a segment too narrow for its own label.
-    const firstHint = document.getElementById('first-hint');
-    if (firstHint) {
-      const pct = (proj.win[0].e - proj.win[0].s) / total * 100;
-      firstHint.style.display = pct < TINY_PCT ? '' : 'none';
-    }
-    const nextHint = document.getElementById('next-hint');
-    if (nextHint) {
-      if (nextHint.dataset.hasNext === '1') {
-        const w = proj.win[rt.index + 1];
-        const pct = w ? (w.e - w.s) / total * 100 : 100;
-        nextHint.style.display = pct < TINY_PCT ? '' : 'none';
-      } else {
-        nextHint.style.display = '';
-      }
-    }
 
     const driftEl = $('#drift');
     if (driftEl) {
