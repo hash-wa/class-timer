@@ -177,7 +177,11 @@ function projectSchedule(cls, rt, now) {
     let e;
     if (i < cur) e = rt.starts[i + 1] ?? s + actPlannedMs(cls, i);
     else if (rt.done) e = rt.finishedAt ?? s + actPlannedMs(cls, i);
-    else e = rt.startedAt + activityDurMs(cls, rt);
+    // Once overdue, the segment's own end keeps pace with real elapsed
+    // time instead of staying pinned at its allocation — otherwise it
+    // sits frozen at its original width while blinking, then jumps to
+    // the true elapsed width all at once the moment you click Next.
+    else e = rt.startedAt + Math.max(activityDurMs(cls, rt), now - rt.startedAt);
     win[i] = { s, e };
   }
   if (rt.done) return { win, drift: 0 };
@@ -260,6 +264,17 @@ function fmtDur(ms) {
   const m = Math.floor((t % 3600) / 60);
   const s = t % 60;
   return h ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+}
+
+// Renders a duration into a big-counter element with the seconds shown as a
+// smaller trailing group (e.g. big "4" + small ":32"), clock-style.
+function renderBigDur(el, ms, prefix) {
+  const t = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const s = t % 60;
+  const main = h ? `${h}:${pad(m)}` : `${m}`;
+  el.innerHTML = `${prefix || ''}${main}<span class="big-sec">:${pad(s)}</span>`;
 }
 
 function fmt12(hhmm) {
@@ -434,9 +449,9 @@ function renderStage() {
         ${segBarHTML(cls)}
         <div class="act-foot">
           <div class="adjust">
-            <button class="btn time-btn time-sub" data-adj="-60000" title="Take a minute off this activity (Shift+1)" aria-label="Take a minute off this activity">−1</button>
-            <button class="btn time-btn time-add" data-adj="60000" title="Give this activity one more minute (1)" aria-label="Give this activity one more minute">+1</button>
-            <button class="btn time-btn time-add" data-adj="300000" title="Give this activity five more minutes (5, Shift+5 to subtract)" aria-label="Give this activity five more minutes">+5</button>
+            <button class="btn time-btn time-sub size-sm" data-adj="-60000" title="Take a minute off this activity (Shift+1)" aria-label="Take a minute off this activity"><span class="time-icon">−</span><span class="time-n">1</span></button>
+            <button class="btn time-btn time-add size-sm" data-adj="60000" title="Give this activity one more minute (1)" aria-label="Give this activity one more minute"><span class="time-icon">+</span><span class="time-n">1</span></button>
+            <button class="btn time-btn time-add size-lg" data-adj="300000" title="Give this activity five more minutes (5, Shift+5 to subtract)" aria-label="Give this activity five more minutes"><span class="time-icon">+</span><span class="time-n">5</span></button>
           </div>
           <div class="foot-btns">
             ${rt.index > 0 ? '<button id="btn-back" class="btn ghost" title="Back to the previous activity">◂ Back</button>' : ''}
@@ -625,7 +640,7 @@ function updateDynamic() {
     // time elapsed since today's.
     const target = missed ? start + 86400000 : start;
     const preRem = $('#pre-remaining');
-    if (preRem) preRem.textContent = fmtDur(target - now);
+    if (preRem) renderBigDur(preRem, target - now);
     title = `in ${fmtDur(target - now)} · ${cls.name}`;
   } else if (acts[rt.index]) {
     durMs = activityDurMs(cls, rt);
@@ -647,12 +662,12 @@ function updateDynamic() {
         // clamped between 30 s and 2 min.
         const warnMs = Math.min(120000, Math.max(30000, durMs * 0.15));
         warning = remaining <= warnMs;
-        big.textContent = fmtDur(remaining);
+        renderBigDur(big, remaining);
         big.classList.remove('over');
         big.classList.toggle('warn', warning);
         title = `${fmtDur(remaining)} · ${acts[rt.index].name}`;
       } else {
-        big.textContent = '+' + fmtDur(-remaining);
+        renderBigDur(big, -remaining, '+');
         big.classList.add('over');
         big.classList.remove('warn');
         title = `⏰ +${fmtDur(-remaining)} · ${acts[rt.index].name}`;
