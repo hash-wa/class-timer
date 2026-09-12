@@ -434,8 +434,8 @@ function renderStage() {
         ${segBarHTML(cls)}
         <div class="act-foot">
           <div class="adjust">
-            <button class="btn time-btn time-sub" data-adj="-60000" title="Take a minute off this activity" aria-label="Take a minute off this activity">−1</button>
-            <button class="btn time-btn time-add" data-adj="60000" title="Give this activity one more minute" aria-label="Give this activity one more minute">+1</button>
+            <button class="btn time-btn time-sub" data-adj="-60000" title="Take a minute off this activity (-)" aria-label="Take a minute off this activity">−1</button>
+            <button class="btn time-btn time-add" data-adj="60000" title="Give this activity one more minute (+)" aria-label="Give this activity one more minute">+1</button>
             <button class="btn time-btn time-add" data-adj="300000" title="Give this activity five more minutes" aria-label="Give this activity five more minutes">+5</button>
           </div>
           <div class="foot-btns">
@@ -1008,7 +1008,9 @@ function init() {
   });
 
   // Shortcuts: Space / → / N / PageDown = next activity (presenter-remote
-  // friendly), ← / PageUp = back, F = fullscreen, D = toggle theme.
+  // friendly), ← / PageUp = back, F = fullscreen, D = toggle theme,
+  // + / - = +1 / -1 min on the current activity (always just 1 min — no
+  // shift-based shortcut for +5, to keep it unambiguous from the keyboard).
   document.addEventListener('keydown', (e) => {
     if (!$('#settings-overlay').classList.contains('hidden')) return;
     if (e.target.closest('input, select, textarea')) return;
@@ -1025,6 +1027,12 @@ function init() {
       toggleFullscreen();
     } else if (k === 'd' || k === 'D') {
       setTheme(prefs.theme === 'light' ? 'dark' : 'light');
+    } else if (k === '+') {
+      e.preventDefault();
+      adjustCurrent(60000);
+    } else if (k === '-') {
+      e.preventDefault();
+      adjustCurrent(-60000);
     }
   });
 

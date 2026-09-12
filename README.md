@@ -28,7 +28,7 @@ Handy extras:
 - Fullscreen for projection (**F** key) — hides everything but the timer card and scales it to the screen, with an optional "dim the screen in fullscreen" setting
 - "Keep screen on" option (screen wake-lock) so the display doesn't sleep mid-lesson
 - End-of-activity chime toggle
-- Keyboard shortcuts: Space / → / N = Next Activity, ← = Back (presenter remotes work: PageDown / PageUp)
+- Keyboard shortcuts: Space / → / N = Next Activity, ← = Back (presenter remotes work: PageDown / PageUp), + / − = ±1 min on the current activity (always just 1 minute — no shift-based +5 shortcut)
 - The browser tab title shows the live countdown, so the timer stays visible while you present other tabs
 - Export/Import JSON to move your setup between computers (settings are stored in the browser's localStorage)
 
