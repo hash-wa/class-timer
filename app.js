@@ -434,9 +434,9 @@ function renderStage() {
         ${segBarHTML(cls)}
         <div class="act-foot">
           <div class="adjust">
-            <button class="btn time-btn time-sub" data-adj="-60000" title="Take a minute off this activity (-)" aria-label="Take a minute off this activity">−1</button>
-            <button class="btn time-btn time-add" data-adj="60000" title="Give this activity one more minute (+)" aria-label="Give this activity one more minute">+1</button>
-            <button class="btn time-btn time-add" data-adj="300000" title="Give this activity five more minutes" aria-label="Give this activity five more minutes">+5</button>
+            <button class="btn time-btn time-sub" data-adj="-60000" title="Take a minute off this activity (Shift+1)" aria-label="Take a minute off this activity">−1</button>
+            <button class="btn time-btn time-add" data-adj="60000" title="Give this activity one more minute (1)" aria-label="Give this activity one more minute">+1</button>
+            <button class="btn time-btn time-add" data-adj="300000" title="Give this activity five more minutes (5, Shift+5 to subtract)" aria-label="Give this activity five more minutes">+5</button>
           </div>
           <div class="foot-btns">
             ${rt.index > 0 ? '<button id="btn-back" class="btn ghost" title="Back to the previous activity">◂ Back</button>' : ''}
@@ -525,7 +525,19 @@ function adjustCurrent(ms) {
   if (!cls) return;
   const rt = rtFor(cls.id);
   if (rt.index < 0 || rt.done) return;
-  rt.adjusts[rt.index] = (rt.adjusts[rt.index] || 0) + ms;
+
+  // Clamp the *stored* adjust the same way the displayed duration is
+  // clamped, not just at display time. Otherwise a keyboard shortcut (which
+  // isn't gated by the +buttons' disabled state) can bank an adjust far
+  // past what's usable, and a later -press would appear to do nothing
+  // because it's merely eating into that banked, already-clamped surplus.
+  const acts = setFor(cls).activities;
+  const tail = acts.slice(rt.index).map((x) => (x.min || 0) * 60000);
+  const budget = actualClassEndMs(cls, rt) - rt.startedAt;
+  const base = cascadeDurations(tail, budget)[0] || 0;
+  const current = rt.adjusts[rt.index] || 0;
+  rt.adjusts[rt.index] = Math.max(-base, Math.min(budget - base, current + ms));
+
   if (ms > 0) beeped.delete(cls.id + ':' + rt.index); // may chime again at the new end
   saveRuntime();
   updateDynamic();
@@ -1009,8 +1021,9 @@ function init() {
 
   // Shortcuts: Space / → / N / PageDown = next activity (presenter-remote
   // friendly), ← / PageUp = back, F = fullscreen, D = toggle theme,
-  // + / - = +1 / -1 min on the current activity (always just 1 min — no
-  // shift-based shortcut for +5, to keep it unambiguous from the keyboard).
+  // 1-9 = add that many minutes to the current activity, Shift+1-9 =
+  // subtract instead. Matched on e.code (physical digit-row/numpad key) so
+  // it works the same regardless of keyboard layout or what Shift produces.
   document.addEventListener('keydown', (e) => {
     if (!$('#settings-overlay').classList.contains('hidden')) return;
     if (e.target.closest('input, select, textarea')) return;
@@ -1027,14 +1040,13 @@ function init() {
       toggleFullscreen();
     } else if (k === 'd' || k === 'D') {
       setTheme(prefs.theme === 'light' ? 'dark' : 'light');
-    } else if (k === '+' || e.code === 'NumpadAdd' || e.code === 'Equal') {
-      // Match the physical +/= key regardless of Shift, the same way the
-      // Minus key below is matched regardless of Shift producing "_".
-      e.preventDefault();
-      adjustCurrent(60000);
-    } else if (k === '-' || e.code === 'NumpadSubtract' || e.code === 'Minus') {
-      e.preventDefault();
-      adjustCurrent(-60000);
+    } else {
+      const digit = /^(?:Digit|Numpad)([1-9])$/.exec(e.code);
+      if (digit) {
+        e.preventDefault();
+        const mins = Number(digit[1]);
+        adjustCurrent((e.shiftKey ? -1 : 1) * mins * 60000);
+      }
     }
   });
 
