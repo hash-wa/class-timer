@@ -266,15 +266,21 @@ function fmtDur(ms) {
   return h ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
 }
 
-// Renders a duration into a big-counter element with the seconds shown as a
-// smaller trailing group (e.g. big "4" + small ":32"), clock-style.
-function renderBigDur(el, ms, prefix) {
-  const t = Math.max(0, Math.floor(ms / 1000));
+// A duration split into a main part and a seconds part meant to render
+// smaller and top-aligned next to it (e.g. big "4" with a small "32"
+// perched beside it) — shared by the big counter, activity durations, and
+// the progress bar's boundary times so seconds always look the same way.
+function durationSmallSecHTML(ms) {
+  const t = Math.max(0, Math.round(ms / 1000));
   const h = Math.floor(t / 3600);
   const m = Math.floor((t % 3600) / 60);
   const s = t % 60;
   const main = h ? `${h}:${pad(m)}` : `${m}`;
-  el.innerHTML = `${prefix || ''}${main}<span class="big-sec">:${pad(s)}</span>`;
+  return `${main}<span class="small-sec">${pad(s)}</span>`;
+}
+
+function renderBigDur(el, ms, prefix) {
+  el.innerHTML = `${prefix || ''}${durationSmallSecHTML(ms)}`;
 }
 
 function fmt12(hhmm) {
@@ -288,11 +294,12 @@ function fmt12Date(d) {
   return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
-// Compact clock time without AM/PM, for the per-activity windows.
-function fmtHM(t) {
+// Compact clock time without AM/PM, seconds shown as a small top-aligned
+// group next to the minute (for the per-activity boundary times).
+function fmtHMSmallSecHTML(t) {
   const d = t instanceof Date ? t : new Date(t);
   const h = d.getHours() % 12 || 12;
-  return `${h}:${pad(d.getMinutes())}`;
+  return `${h}:${pad(d.getMinutes())}<span class="small-sec">${pad(d.getSeconds())}</span>`;
 }
 
 /* ================= Sound ================= */
@@ -371,7 +378,7 @@ function segBarHTML(cls) {
     return `
       <div class="seg" data-i="${i}" style="flex-basis:${pct.toFixed(3)}%">
         <div class="seg-fill" data-i="${i}"></div>
-        <div class="seg-label"><div class="seg-name">${esc(a.name)}</div><div class="seg-dur" data-i="${i}">${Math.round(durs[i] / 60000)} min</div></div>
+        <div class="seg-label"><div class="seg-name">${esc(a.name)}</div><div class="seg-dur" data-i="${i}">${durationSmallSecHTML(durs[i])}</div></div>
       </div>`;
   }).join('');
 
@@ -449,9 +456,9 @@ function renderStage() {
         ${segBarHTML(cls)}
         <div class="act-foot">
           <div class="adjust">
-            <button class="btn time-btn time-sub size-sm" data-adj="-60000" title="Take a minute off this activity (Shift+1)" aria-label="Take a minute off this activity"><span class="time-icon">−</span><span class="time-n">1</span></button>
-            <button class="btn time-btn time-add size-sm" data-adj="60000" title="Give this activity one more minute (1)" aria-label="Give this activity one more minute"><span class="time-icon">+</span><span class="time-n">1</span></button>
-            <button class="btn time-btn time-add size-lg" data-adj="300000" title="Give this activity five more minutes (5, Shift+5 to subtract)" aria-label="Give this activity five more minutes"><span class="time-icon">+</span><span class="time-n">5</span></button>
+            <button class="btn time-btn time-sub" data-adj="-60000" title="Take a minute off this activity (Shift+1)" aria-label="Take a minute off this activity"><span class="time-icon time-icon-sub"></span><span class="time-n">1</span></button>
+            <button class="btn time-btn time-add" data-adj="60000" title="Give this activity one more minute (1)" aria-label="Give this activity one more minute"><span class="time-icon time-icon-add"></span><span class="time-n">1</span></button>
+            <button class="btn time-btn time-add" data-adj="300000" title="Give this activity five more minutes (5, Shift+5 to subtract)" aria-label="Give this activity five more minutes"><span class="time-icon time-icon-add"></span><span class="time-n">5</span></button>
           </div>
           <div class="foot-btns">
             ${rt.index > 0 ? '<button id="btn-back" class="btn ghost" title="Back to the previous activity">◂ Back</button>' : ''}
@@ -734,7 +741,7 @@ function updateDynamic() {
     document.querySelectorAll('#stage .seg-time').forEach((el) => {
       const i = Number(el.dataset.i);
       const t = i < n ? proj.win[i].s : proj.win[n - 1].e;
-      el.textContent = Number.isFinite(t) ? fmtHM(t) : '—';
+      el.innerHTML = Number.isFinite(t) ? fmtHMSmallSecHTML(t) : '—';
       el.style.left = cumPct[i].toFixed(3) + '%';
     });
     document.querySelectorAll('#stage .seg').forEach((seg) => {
@@ -742,7 +749,7 @@ function updateDynamic() {
       const durationMs = durations[i];
       seg.style.flexBasis = (cumPct[i + 1] - cumPct[i]).toFixed(3) + '%';
       const dur = seg.querySelector('.seg-dur');
-      if (dur) dur.textContent = `${Math.round(durationMs / 60000)} min`;
+      if (dur) dur.innerHTML = durationSmallSecHTML(durationMs);
       const fill = seg.querySelector('.seg-fill');
       seg.classList.remove('done', 'current', 'warning', 'overdue');
       if (rt.done || (rt.index >= 0 && i < rt.index)) {
