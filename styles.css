@@ -329,7 +329,9 @@ main {
 /* ---------- Pre-start / running ---------- */
 .pre, .activity { text-align: center; }
 
-/* Fixed-height slot above the pre-start counter (blank or "Starts in"). */
+/* Fixed-height slot above the counter (blank while running, "Starts in"
+   before the class begins) so the counter never shifts position between
+   the two states. */
 .mini-label {
   min-height: 1.35rem;
   color: var(--muted);
@@ -355,20 +357,6 @@ main {
   justify-self: center;
   text-align: center;
   min-width: 0;
-}
-
-.trio-mid .act-name {
-  font-size: clamp(1.3rem, 3.5vw, 2rem);
-  font-weight: 700;
-  margin-top: 0.4rem;
-  max-width: 24rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  background: var(--grad);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
 }
 
 .class-time-small {
@@ -563,7 +551,6 @@ body.fs .now-inline { font-size: clamp(1.05rem, 2.6vmin, 2.1rem); }
 body.fs .big { font-size: clamp(3.5rem, 32vmin, 32rem); }
 body.fs .mini-label { font-size: clamp(0.85rem, 2.1vmin, 1.7rem); margin-bottom: 1.5vmin; }
 body.fs .class-drift { font-size: clamp(0.78rem, 1.8vmin, 1.4rem); }
-body.fs .trio-mid .act-name { font-size: clamp(1.3rem, 5vmin, 4rem); max-width: 55vmin; }
 body.fs .cts-label { font-size: clamp(0.68rem, 1.5vmin, 1.2rem); }
 body.fs .cts-num { font-size: clamp(1.6rem, 5vmin, 4rem); }
 body.fs .segbar-wrap { margin: 3vmin 0; }

@@ -467,15 +467,14 @@ function renderStage() {
         </div>` : '<p class="muted">This class has no activities yet — add some in Setup.</p>'}
       </div>`;
   } else {
-    const a = acts[rt.index];
     const next = acts[rt.index + 1];
     const isLast = rt.index === acts.length - 1;
     body = `
       <div class="activity">
+        <div class="mini-label"></div>
         <div class="counter-trio">
           <div class="trio-mid">
             <div class="big" id="act-remaining">—</div>
-            <div class="act-name">${esc(a.name)}</div>
           </div>
           ${isLast ? '' : `
           <div class="class-time-small">
