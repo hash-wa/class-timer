@@ -432,9 +432,12 @@ function renderStage() {
 
   const head = `
     <div class="class-head">
-      <div class="class-title">
-        <h2 class="class-name" title="${esc(cls.name)}">${esc(cls.name)}</h2>
-        <span class="class-window" id="class-window"></span>
+      <div class="class-title-col">
+        <div class="class-title">
+          <h2 class="class-name" title="${esc(cls.name)}">${esc(cls.name)}</h2>
+          <span class="class-window" id="class-window"></span>
+        </div>
+        <div class="class-drift" id="drift"></div>
       </div>
       <div class="now-inline" id="now-clock">—</div>
       <button id="btn-restart" class="icon-btn bordered" title="Restart this class from the beginning">↺</button>
@@ -466,17 +469,20 @@ function renderStage() {
   } else {
     const a = acts[rt.index];
     const next = acts[rt.index + 1];
+    const isLast = rt.index === acts.length - 1;
     body = `
       <div class="activity">
         <div class="counter-trio">
-          <div class="trio-big trio-left" id="act-remaining">—</div>
           <div class="trio-mid">
+            <div class="big" id="act-remaining">—</div>
             <div class="act-name">${esc(a.name)}</div>
-            <div class="act-sub" id="drift"></div>
           </div>
-          <div class="trio-big trio-right" id="class-time-left">—</div>
+          ${isLast ? '' : `
+          <div class="class-time-small">
+            <div class="cts-label">Left in class</div>
+            <div class="cts-num" id="class-time-left">—</div>
+          </div>`}
         </div>
-        <div class="trio-caption"><span>This activity</span><span>Left in class</span></div>
         ${segBarHTML(cls)}
         <div class="act-foot">
           <div class="adjust">
@@ -717,8 +723,9 @@ function updateDynamic() {
       : `${fmt12Date(new Date(rt.starts[0] ?? start))} – ${fmt12Date(new Date(actualClassEndMs(cls, rt)))}`;
   }
 
-  // Dimmed "time left in class", the same size as the activity counter,
-  // sitting to its right — only present while an activity is running.
+  // Small "time left in class", off to the side of the (now centered,
+  // full-size) activity counter — hidden on the last activity, since its
+  // own countdown already IS the class's remaining time at that point.
   const classTimeEl = $('#class-time-left');
   if (classTimeEl) {
     const remain = actualClassEndMs(cls, rt) - now;

@@ -232,12 +232,32 @@ main {
   margin-bottom: 0.5rem;
 }
 
+.class-title-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
 .class-title {
   display: flex;
   align-items: baseline;
   gap: 0.6rem;
   min-width: 0;
 }
+
+/* Reserves its line even when empty, so the drift note appearing or
+   disappearing never shifts anything below it. */
+.class-drift {
+  min-height: 1rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.78rem;
+}
+
+.class-drift.behind { color: var(--amber); }
+.class-drift.ahead { color: var(--green); }
 
 .class-name {
   font-size: 1.5rem;
@@ -301,8 +321,7 @@ main {
    built-in leading above its glyphs than a huge one does, so the digits
    themselves still end up sitting a bit high relative to the big ones --
    nudged down to compensate. */
-.big .small-sec,
-.trio-big .small-sec { font-size: 0.42em; margin-top: 0.3em; }
+.big .small-sec { font-size: 0.42em; margin-top: 0.3em; }
 .seg-dur .small-sec,
 .seg-time .small-sec,
 .now-inline .small-sec { font-size: 0.78em; }
@@ -310,9 +329,7 @@ main {
 /* ---------- Pre-start / running ---------- */
 .pre, .activity { text-align: center; }
 
-/* Fixed-height slot above the big counter (blank or "Starts in") so the
-   pre-start counter never shifts position relative to the running state's
-   counter-trio row below. */
+/* Fixed-height slot above the pre-start counter (blank or "Starts in"). */
 .mini-label {
   min-height: 1.35rem;
   color: var(--muted);
@@ -322,8 +339,10 @@ main {
   margin-bottom: 0.6rem;
 }
 
-/* Running state: activity counter (left) / activity name (middle) / dimmed
-   time-left-in-class (right, same size as the activity counter). */
+/* Running state: the activity counter is full-size and centered (columns
+   1 and 3 are empty 1fr tracks either side of it, keeping it centered
+   whether or not column 3 has anything in it); a small, muted class-time-
+   left readout sits to its right, absent entirely on the last activity. */
 .counter-trio {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
@@ -331,32 +350,18 @@ main {
   gap: 1rem;
 }
 
-.trio-big {
-  display: flex;
-  align-items: flex-start;
-  font-size: clamp(2.2rem, 9vw, 5.5rem);
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  line-height: 1.05;
-  font-variant-numeric: tabular-nums;
-}
-
-.trio-left { justify-self: start; }
-.trio-right { justify-self: end; color: var(--muted); opacity: 0.55; }
-.trio-right.over { color: var(--red); }
-
 .trio-mid {
+  grid-column: 2;
   justify-self: center;
-  align-self: center;
   text-align: center;
   min-width: 0;
-  padding-bottom: 0.3rem;
 }
 
 .trio-mid .act-name {
-  font-size: clamp(1rem, 2.6vw, 1.4rem);
+  font-size: clamp(1.3rem, 3.5vw, 2rem);
   font-weight: 700;
-  max-width: 16rem;
+  margin-top: 0.4rem;
+  max-width: 24rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -366,28 +371,36 @@ main {
   -webkit-text-fill-color: transparent;
 }
 
-.trio-mid .act-sub {
-  min-height: 1rem;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  font-size: 0.72rem;
-  margin-top: 0.2rem;
+.class-time-small {
+  grid-column: 3;
+  justify-self: end;
+  align-self: start;
+  text-align: right;
+  min-width: 0;
 }
 
-.act-sub.behind { color: var(--amber); }
-.act-sub.ahead { color: var(--green); }
-
-.trio-caption {
-  display: flex;
-  justify-content: space-between;
+.cts-label {
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-size: 0.68rem;
-  opacity: 0.7;
-  margin-top: 0.35rem;
+  margin-bottom: 0.15rem;
+  white-space: nowrap;
 }
+
+.cts-num {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  color: var(--muted);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.cts-num.over { color: var(--red); }
+.cts-num .small-sec { font-size: 0.55em; margin-top: 0.12em; }
 
 /* ---------- Segmented class bar ---------- */
 .segbar-wrap { margin: 1.2rem 0 1.3rem; }
@@ -549,10 +562,10 @@ body.fs .class-window { font-size: clamp(0.9rem, 2.2vmin, 1.8rem); }
 body.fs .now-inline { font-size: clamp(1.05rem, 2.6vmin, 2.1rem); }
 body.fs .big { font-size: clamp(3.5rem, 32vmin, 32rem); }
 body.fs .mini-label { font-size: clamp(0.85rem, 2.1vmin, 1.7rem); margin-bottom: 1.5vmin; }
-body.fs .trio-big { font-size: clamp(2.2rem, 16vmin, 16rem); }
-body.fs .trio-mid .act-name { font-size: clamp(1rem, 4.5vmin, 3.2rem); max-width: 40vmin; }
-body.fs .trio-mid .act-sub { font-size: clamp(0.72rem, 1.8vmin, 1.4rem); }
-body.fs .trio-caption { font-size: clamp(0.68rem, 1.5vmin, 1.2rem); }
+body.fs .class-drift { font-size: clamp(0.78rem, 1.8vmin, 1.4rem); }
+body.fs .trio-mid .act-name { font-size: clamp(1.3rem, 5vmin, 4rem); max-width: 55vmin; }
+body.fs .cts-label { font-size: clamp(0.68rem, 1.5vmin, 1.2rem); }
+body.fs .cts-num { font-size: clamp(1.6rem, 5vmin, 4rem); }
 body.fs .segbar-wrap { margin: 3vmin 0; }
 body.fs .segbar { height: clamp(3.4rem, 13vmin, 10rem); }
 body.fs .seg-time { font-size: clamp(0.85rem, 2.1vmin, 1.7rem); }
@@ -728,16 +741,9 @@ input[type="number"].in { width: 5rem; }
   .foot-btns { width: 100%; flex-direction: column-reverse; align-items: center; }
   .foot-btns .btn:not(.cta-circle) { width: 100%; }
 
-  /* Three same-size big numbers side by side get tight fast on a phone --
-     stack the class-time-left under the activity name and name instead. */
-  .counter-trio {
-    grid-template-columns: 1fr;
-    grid-template-areas: "left" "mid" "right";
-    justify-items: center;
-    gap: 0.3rem;
-  }
-  .trio-left { grid-area: left; justify-self: center; }
-  .trio-mid { grid-area: mid; padding-bottom: 0; }
-  .trio-right { grid-area: right; justify-self: center; font-size: clamp(1.6rem, 12vw, 3rem); }
-  .trio-caption { display: none; }
+  /* Stack the small class-time readout under the activity counter+name
+     rather than squeezing them into a row on a narrow phone screen. */
+  .counter-trio { grid-template-columns: 1fr; justify-items: center; gap: 0.5rem; }
+  .trio-mid { grid-column: 1; }
+  .class-time-small { grid-column: 1; justify-self: center; text-align: center; }
 }
