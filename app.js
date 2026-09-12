@@ -432,7 +432,10 @@ function renderStage() {
 
   const head = `
     <div class="class-head">
-      <h2 class="class-name" title="${esc(cls.name)}">${esc(cls.name)}</h2>
+      <div class="class-title">
+        <h2 class="class-name" title="${esc(cls.name)}">${esc(cls.name)}</h2>
+        <span class="class-window" id="class-window"></span>
+      </div>
       <div class="now-inline" id="now-clock">—</div>
       <button id="btn-restart" class="icon-btn bordered" title="Restart this class from the beginning">↺</button>
     </div>
@@ -697,26 +700,28 @@ function updateDynamic() {
     }
   }
 
-  // Class-level summary: actual start–end window and total time left,
-  // shown once the class has actually started (blank beforehand, since the
-  // pre-start countdown already covers that case).
+  // Class window (start–end), next to the class name — and the total time
+  // left, on its own line below — both shown once the class has actually
+  // started (blank beforehand, since the pre-start countdown already
+  // covers that case).
+  const windowEl = $('#class-window');
   const summaryEl = $('#class-summary');
-  if (summaryEl) {
-    if (rt.index === -1) {
-      summaryEl.textContent = '';
-      summaryEl.classList.remove('over');
-    } else {
-      const actualStart = rt.starts[0] ?? start;
-      const cEnd = actualClassEndMs(cls, rt);
-      const windowStr = esc(`${fmt12Date(new Date(actualStart))} – ${fmt12Date(new Date(cEnd))}`);
+  if (rt.index === -1) {
+    if (windowEl) windowEl.textContent = '';
+    if (summaryEl) { summaryEl.textContent = ''; summaryEl.classList.remove('over'); }
+  } else {
+    const actualStart = rt.starts[0] ?? start;
+    const cEnd = actualClassEndMs(cls, rt);
+    if (windowEl) windowEl.textContent = `${fmt12Date(new Date(actualStart))} – ${fmt12Date(new Date(cEnd))}`;
+    if (summaryEl) {
       if (rt.done) {
-        summaryEl.innerHTML = `${windowStr} · Class complete`;
+        summaryEl.textContent = 'Class complete';
         summaryEl.classList.remove('over');
       } else {
         const remain = cEnd - now;
         summaryEl.innerHTML = remain >= 0
-          ? `${windowStr} · ${durationSmallSecHTML(remain)} left`
-          : `${windowStr} · +${durationSmallSecHTML(-remain)} over`;
+          ? `${durationSmallSecHTML(remain)} left`
+          : `+${durationSmallSecHTML(-remain)} over`;
         summaryEl.classList.toggle('over', remain < 0);
       }
     }

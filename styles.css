@@ -232,6 +232,13 @@ main {
   margin-bottom: 0.5rem;
 }
 
+.class-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
 .class-name {
   font-size: 1.5rem;
   font-weight: 700;
@@ -239,6 +246,14 @@ main {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.class-window {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .now-inline {
@@ -288,13 +303,16 @@ main {
    the segment labels start small (~0.7-0.85rem), so the same ratio there
    would be unreadable on a projector, and gets a gentler one instead. */
 .small-sec {
-  font-weight: 700;
   opacity: 0.75;
   vertical-align: text-top;
   margin-left: 0.1em;
 }
 
-.big .small-sec { font-size: 0.42em; }
+/* flex-start aligns box tops, but a small font's line box has much less
+   built-in leading above its glyphs than a huge one does, so the digits
+   themselves still end up sitting a bit high relative to the big ones --
+   nudged down to compensate. */
+.big .small-sec { font-size: 0.42em; margin-top: 0.3em; }
 .seg-dur .small-sec,
 .seg-time .small-sec,
 .now-inline .small-sec,
@@ -473,6 +491,7 @@ body.fs .card {
 }
 body.fs .class-head { margin-bottom: 1.5vmin; }
 body.fs .class-name { font-size: clamp(1.5rem, 4.5vmin, 3.6rem); }
+body.fs .class-window { font-size: clamp(0.9rem, 2.2vmin, 1.8rem); }
 body.fs .now-inline { font-size: clamp(1.05rem, 2.6vmin, 2.1rem); }
 body.fs .class-summary { font-size: clamp(0.95rem, 2.3vmin, 1.9rem); margin-bottom: 2vmin; }
 body.fs .big { font-size: clamp(3.5rem, 32vmin, 32rem); }
