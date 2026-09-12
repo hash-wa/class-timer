@@ -767,14 +767,16 @@ function updateDynamic() {
     }
   }
 
-  // Class window (start–end), next to the class name, shown once the class
-  // has actually started (blank beforehand, since the pre-start countdown
-  // already covers that case).
+  // Class window (start–end), next to the class name. Before the class
+  // starts this is its next scheduled window (today's, or a future day's if
+  // it doesn't meet today or already missed today's); once running or done,
+  // it's the actual window, which can differ from scheduled once time is
+  // added/lost.
   const windowEl = $('#class-window');
   if (windowEl) {
-    windowEl.textContent = rt.index === -1
-      ? ''
-      : `${fmt12Date(new Date(rt.starts[0] ?? start))} – ${fmt12Date(new Date(actualClassEndMs(cls, rt)))}`;
+    const winStart = rt.index === -1 ? nextScheduledStart(cls, now) : (rt.starts[0] ?? start);
+    const winEnd = rt.index === -1 ? winStart + classDurationMin(cls) * 60000 : actualClassEndMs(cls, rt);
+    windowEl.textContent = `${fmt12Date(new Date(winStart))} – ${fmt12Date(new Date(winEnd))}`;
   }
 
   // Small "time left in class", off to the side of the (now centered,
