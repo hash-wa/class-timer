@@ -283,6 +283,20 @@ function renderBigDur(el, ms, prefix) {
   el.innerHTML = `${prefix || ''}${durationSmallSecHTML(ms)}`;
 }
 
+// The live clock, small-seconds styled like everything else. Built from
+// Intl's formatToParts (rather than a hand-rolled 12-hour format) so the
+// hour/minute/AM-PM stay locale-correct; only the "second" part and the
+// literal separator immediately before it are touched.
+function fmtClockSmallSecHTML(d) {
+  const parts = new Intl.DateTimeFormat([], { hour: 'numeric', minute: '2-digit', second: '2-digit' }).formatToParts(d);
+  let html = '';
+  parts.forEach((p, i) => {
+    if (p.type === 'literal' && parts[i + 1] && parts[i + 1].type === 'second') return;
+    html += p.type === 'second' ? `<span class="small-sec">${p.value}</span>` : esc(p.value);
+  });
+  return html;
+}
+
 function fmt12(hhmm) {
   const [h, m] = hhmm.split(':').map(Number);
   const d = new Date();
@@ -615,11 +629,7 @@ function tick() {
 
 function updateDynamic() {
   const nowClock = $('#now-clock'); // lives inside the card, absent on onboarding
-  if (nowClock) {
-    nowClock.textContent = new Date().toLocaleTimeString([], {
-      hour: 'numeric', minute: '2-digit', second: '2-digit',
-    });
-  }
+  if (nowClock) nowClock.innerHTML = fmtClockSmallSecHTML(new Date());
 
   const cls = currentClass();
   if (!cls) {
@@ -698,15 +708,15 @@ function updateDynamic() {
     } else {
       const actualStart = rt.starts[0] ?? start;
       const cEnd = actualClassEndMs(cls, rt);
-      const windowStr = `${fmt12Date(new Date(actualStart))} – ${fmt12Date(new Date(cEnd))}`;
+      const windowStr = esc(`${fmt12Date(new Date(actualStart))} – ${fmt12Date(new Date(cEnd))}`);
       if (rt.done) {
-        summaryEl.textContent = `${windowStr} · Class complete`;
+        summaryEl.innerHTML = `${windowStr} · Class complete`;
         summaryEl.classList.remove('over');
       } else {
         const remain = cEnd - now;
-        summaryEl.textContent = remain >= 0
-          ? `${windowStr} · ${fmtDur(remain)} left`
-          : `${windowStr} · +${fmtDur(-remain)} over`;
+        summaryEl.innerHTML = remain >= 0
+          ? `${windowStr} · ${durationSmallSecHTML(remain)} left`
+          : `${windowStr} · +${durationSmallSecHTML(-remain)} over`;
         summaryEl.classList.toggle('over', remain < 0);
       }
     }

@@ -263,13 +263,19 @@ main {
 .class-summary.over { color: var(--red); }
 
 /* ---------- Big countdown ---------- */
+/* Flex + align-items: flex-start rather than vertical-align, so the
+   seconds' top edge lines up exactly with the main digits' top edge —
+   vertical-align: text-top aligns to font-ascent metrics, which drift
+   slightly out of true at such a large size difference. */
 .big {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
   font-size: clamp(3.5rem, 16vw, 10rem);
   font-weight: 800;
   letter-spacing: -0.02em;
   line-height: 1.05;
   font-variant-numeric: tabular-nums;
-  text-align: center;
 }
 
 .big.over { color: var(--red); }
@@ -290,7 +296,9 @@ main {
 
 .big .small-sec { font-size: 0.42em; }
 .seg-dur .small-sec,
-.seg-time .small-sec { font-size: 0.78em; }
+.seg-time .small-sec,
+.now-inline .small-sec,
+.class-summary .small-sec { font-size: 0.78em; }
 
 /* ---------- Pre-start / running ---------- */
 .pre, .activity { text-align: center; }
