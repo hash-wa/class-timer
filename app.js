@@ -83,6 +83,17 @@ function startDate(cls) {
   return d;
 }
 
+// Days of the week (0=Sunday..6=Saturday) this class meets on. Undefined or
+// empty means "every day" -- both the default for a brand-new class and the
+// fallback for configs saved before this field existed.
+function classDays(cls) {
+  return (cls.days && cls.days.length) ? cls.days : [0, 1, 2, 3, 4, 5, 6];
+}
+
+function classMeetsOn(cls, date) {
+  return classDays(cls).includes(date.getDay());
+}
+
 function classDurationMin(cls) {
   if (cls.durationMin && cls.durationMin > 0) return cls.durationMin;
   return setFor(cls).activities.reduce((sum, a) => sum + (a.min || 0), 0);
@@ -102,9 +113,39 @@ function actualClassEndMs(cls, rt) {
   return actualStart + classDurationMin(cls) * 60000;
 }
 
-// True when today's class window has fully passed and the class was never run.
-function isMissedToday(cls, rt) {
-  return rt.index === -1 && !rt.done && Date.now() >= classEndMs(cls);
+// This class's scheduled start time on the same calendar day as `day`,
+// regardless of whether `day` is actually one of its scheduled days.
+function startOnDate(cls, day) {
+  const [h, m] = cls.start.split(':').map(Number);
+  const d = new Date(day);
+  d.setHours(h, m, 0, 0);
+  return +d;
+}
+
+// The next scheduled start whose window hasn't already fully ended, at or
+// after `afterMs` -- today (if not yet over), or the next day this class
+// meets, however many days away that is. Replaces the old "just add a day"
+// missed-class handling now that a class might only meet certain days.
+function nextScheduledStart(cls, afterMs) {
+  for (let offset = 0; offset < 8; offset++) {
+    const day = new Date(afterMs);
+    day.setDate(day.getDate() + offset);
+    if (!classMeetsOn(cls, day)) continue;
+    const startMs = startOnDate(cls, day);
+    if (startMs + classDurationMin(cls) * 60000 > afterMs) return startMs;
+  }
+  return startOnDate(cls, new Date(afterMs)); // unreachable: classDays() is never empty
+}
+
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+// "", "tomorrow ", or a day name, for phrasing "Starts ___ in".
+function relativeDayLabel(targetMs, nowMs) {
+  const startOfDay = (ms) => { const d = new Date(ms); d.setHours(0, 0, 0, 0); return +d; };
+  const diffDays = Math.round((startOfDay(targetMs) - startOfDay(nowMs)) / 86400000);
+  if (diffDays <= 0) return '';
+  if (diffDays === 1) return 'tomorrow ';
+  return `${DAY_NAMES[new Date(targetMs).getDay()]} `;
 }
 
 // Fits a run of planned durations (ms) into a total budget (ms). If the plan
@@ -219,15 +260,23 @@ function rtFor(classId) {
 
 function pickDefaultClass() {
   const now = Date.now();
+  const today = new Date(now);
   const sorted = sortedClasses();
   const inProgress = sorted.find((c) => {
+    if (!classMeetsOn(c, today)) return false;
     const s = +startDate(c);
     return now >= s && now < s + classDurationMin(c) * 60000;
   });
   if (inProgress) return inProgress.id;
-  const upcoming = sorted.find((c) => +startDate(c) > now);
-  const fallback = upcoming || sorted[sorted.length - 1];
-  return fallback ? fallback.id : null;
+  // Whichever class starts soonest, considering day-of-week -- may be later
+  // today, tomorrow, or further out for a class that only meets some days.
+  let best = null;
+  let bestStart = Infinity;
+  for (const c of sorted) {
+    const next = nextScheduledStart(c, now);
+    if (next < bestStart) { bestStart = next; best = c; }
+  }
+  return best ? best.id : null;
 }
 
 function currentClass() {
@@ -370,8 +419,9 @@ document.addEventListener('visibilitychange', () => {
 function renderChips() {
   const nav = $('#class-chips');
   const cls = currentClass();
+  const today = new Date();
   nav.innerHTML = sortedClasses().map((c) => `
-    <button class="chip ${cls && c.id === cls.id ? 'active' : ''}" data-class="${c.id}">
+    <button class="chip ${cls && c.id === cls.id ? 'active' : ''} ${classMeetsOn(c, today) ? '' : 'not-today'}" data-class="${c.id}">
       <span>${esc(c.name)}</span><span class="chip-time">${fmt12(c.start)}</span>
     </button>`).join('');
 }
@@ -453,10 +503,11 @@ function renderStage() {
         ${rt.index >= 0 ? '<button id="btn-back" class="btn ghost" title="Back to the last activity">◂ Back</button>' : ''}
       </div>`;
   } else if (rt.index === -1) {
-    const missed = isMissedToday(cls, rt);
+    const nowMs = Date.now();
+    const dayLabel = relativeDayLabel(nextScheduledStart(cls, nowMs), nowMs);
     body = `
       <div class="pre">
-        <div class="mini-label">Starts ${missed ? 'tomorrow ' : ''}in</div>
+        <div class="mini-label">Starts ${dayLabel}in</div>
         <div class="big" id="pre-remaining">—</div>
         ${segBarHTML(cls)}
         ${acts.length ? `
@@ -624,10 +675,13 @@ function tick() {
   const cls = currentClass();
   if (cls) {
     const rt = rtFor(cls.id);
-    // Auto-start while the wall clock is inside the class window. A class
-    // whose window already passed stays pending and counts down to tomorrow.
+    // Auto-start while the wall clock is inside the class window, on a day
+    // this class actually meets. A class whose window already passed (or
+    // that doesn't meet today at all) stays pending and counts down to its
+    // next scheduled occurrence.
     const startMs = +startDate(cls);
-    if (rt.index === -1 && !rt.done && Date.now() >= startMs && Date.now() < classEndMs(cls)) {
+    if (rt.index === -1 && !rt.done && classMeetsOn(cls, new Date())
+      && Date.now() >= startMs && Date.now() < classEndMs(cls)) {
       const acts = setFor(cls).activities;
       if (acts.length) {
         rt.index = 0;
@@ -656,7 +710,6 @@ function updateDynamic() {
   const rt = rtFor(cls.id);
   const now = Date.now();
   const start = +startDate(cls);
-  const missed = isMissedToday(cls, rt);
   const acts = setFor(cls).activities;
   let title = 'Class Timer';
 
@@ -670,9 +723,9 @@ function updateDynamic() {
   if (rt.done) {
     title = `✓ ${cls.name}`;
   } else if (rt.index === -1) {
-    // A missed class counts down to tomorrow's start instead of showing
-    // time elapsed since today's.
-    const target = missed ? start + 86400000 : start;
+    // Counts down to the next time this class actually meets -- later
+    // today, tomorrow, or further out if it skipped today entirely.
+    const target = nextScheduledStart(cls, now);
     const preRem = $('#pre-remaining');
     if (preRem) renderBigDur(preRem, target - now);
     title = `in ${fmtDur(target - now)} · ${cls.name}`;
@@ -855,6 +908,10 @@ function renderSettings() {
       <input class="in" data-field="cls-dur" type="number" min="1" placeholder="auto" value="${c.durationMin ?? ''}" title="Class duration in minutes; leave blank to use the activity total">
       <select class="in" data-field="cls-set">${setOptionsHTML(c.setId)}</select>
       <button class="icon-btn" data-action="del-class" title="Remove class">✕</button>
+      <div class="class-days">
+        ${DAY_NAMES.map((name, day) => `
+          <button type="button" class="day-btn${classDays(c).includes(day) ? ' active' : ''}" data-action="toggle-day" data-day="${day}" title="${name}">${name[0]}</button>`).join('')}
+      </div>
     </div>`).join('') || '<p class="muted">No classes yet.</p>';
 }
 
@@ -874,6 +931,7 @@ function handleSettingsClick(e) {
   const actEl = btn.closest('[data-act]');
   const classEl = btn.closest('[data-class]');
   const set = setEl && config.activitySets.find((s) => s.id === setEl.dataset.set);
+  const cls = classEl && config.classes.find((c) => c.id === classEl.dataset.class);
 
   if (action === 'add-act' && set) {
     set.activities.push({ id: uid(), name: 'New activity', min: 10 });
@@ -894,6 +952,16 @@ function handleSettingsClick(e) {
     });
   } else if (action === 'del-class' && classEl) {
     config.classes = config.classes.filter((c) => c.id !== classEl.dataset.class);
+  } else if (action === 'toggle-day' && cls) {
+    const day = Number(btn.dataset.day);
+    const days = classDays(cls).slice();
+    const idx = days.indexOf(day);
+    if (idx >= 0) {
+      if (days.length > 1) days.splice(idx, 1); // always keep at least one day
+    } else {
+      days.push(day);
+    }
+    cls.days = days.sort((a, b) => a - b);
   } else {
     return;
   }

@@ -204,6 +204,8 @@ body {
 
 .chip-time { color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
 
+.chip.not-today { opacity: 0.5; }
+
 /* ---------- Stage / card ---------- */
 main {
   flex: 1;
@@ -706,6 +708,42 @@ input[type="number"].in { width: 5rem; }
 
 .class-row .in { width: 100%; }
 
+.class-row {
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.class-days {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 0.3rem;
+}
+
+.day-btn {
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 50%;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+
+.day-btn:hover { border-color: var(--accent-b); }
+
+.day-btn.active {
+  background: var(--grad);
+  border-color: transparent;
+  color: #fff;
+}
+
 #classes-list + .btn, #sets-list + .btn { margin-top: 0.2rem; }
 
 .data-row { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.6rem; }
@@ -722,6 +760,8 @@ input[type="number"].in { width: 5rem; }
     border-radius: 0.7rem;
     padding: 0.6rem;
   }
+  .class-days { flex-wrap: wrap; justify-content: center; }
+  .day-btn { width: 1.7rem; height: 1.7rem; font-size: 0.66rem; }
   .act-foot { justify-content: center; }
   .adjust { width: 100%; justify-content: center; flex-wrap: wrap; }
   .time-btn { width: 3.2rem; height: 3.2rem; font-size: 0.9rem; }
