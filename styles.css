@@ -394,9 +394,14 @@ main {
 /* ---------- Segmented class bar ---------- */
 .segbar-wrap { margin: 1.2rem 0 1.3rem; }
 
+/* Height in em (not a fixed rem) so it always scales in exact lockstep
+   with this element's own font-size -- including in fullscreen, where
+   that font-size is overridden to something much bigger. A fixed height
+   paired with an independently-scaling font-size is what let the
+   fullscreen labels drift out of proportion with the gap above the bar. */
 .seg-times {
   position: relative;
-  height: 1.3rem;
+  height: 1.5em;
   font-variant-numeric: tabular-nums;
   font-size: 0.85rem;
   color: var(--muted);
@@ -556,11 +561,10 @@ body.fs .cts-label { font-size: clamp(0.68rem, 1.5vmin, 1.2rem); }
 body.fs .cts-num { font-size: clamp(1.6rem, 5vmin, 4rem); }
 body.fs .segbar-wrap { margin: 3vmin 0; }
 body.fs .segbar { height: clamp(3.4rem, 13vmin, 10rem); }
-/* .seg-times' height must scale in step with .seg-time's font-size below --
-   otherwise the enlarged boundary labels overflow their fixed-height strip
-   and spill down onto the bar itself. */
-body.fs .seg-times { height: clamp(1.3rem, 2.6vmin, 2.1rem); }
-body.fs .seg-time { font-size: clamp(0.85rem, 2.1vmin, 1.7rem); }
+/* Scaling font-size on the container (not the .seg-time labels directly)
+   means its em-based height above automatically keeps the same gap-to-
+   text ratio as the normal view, at any size. */
+body.fs .seg-times { font-size: clamp(0.85rem, 2.1vmin, 1.7rem); }
 body.fs .seg-name { font-size: clamp(0.95rem, 2.9vmin, 2.3rem); }
 body.fs .seg-dur { font-size: clamp(0.75rem, 1.9vmin, 1.5rem); }
 body.fs .act-foot { margin-top: 1vmin; }
