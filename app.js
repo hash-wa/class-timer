@@ -440,7 +440,7 @@ function renderStage() {
         <div class="class-drift" id="drift"></div>
       </div>
       <div class="now-inline" id="now-clock">—</div>
-      <button id="btn-restart" class="icon-btn bordered" title="Restart this class from the beginning">↺</button>
+      <button id="btn-restart" class="icon-btn bordered" title="Restart this class from the beginning" ${rt.index === -1 && !rt.done ? 'disabled' : ''}>↺</button>
     </div>`;
 
   let body;
@@ -597,6 +597,8 @@ function adjustCurrent(ms) {
 function restartClass() {
   const cls = currentClass();
   if (!cls) return;
+  const rt = rtFor(cls.id);
+  if (rt.index === -1 && !rt.done) return; // nothing to restart before the class begins
   if (!confirm(`Restart "${cls.name}" from the beginning?`)) return;
   runtime.byClass[cls.id] = { index: -1, startedAt: null, done: false, starts: {}, adjusts: {} };
   for (const key of [...beeped]) {
