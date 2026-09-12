@@ -107,10 +107,26 @@ function isMissedToday(cls, rt) {
   return rt.index === -1 && !rt.done && Date.now() >= classEndMs(cls);
 }
 
-// The last activity always absorbs whatever the earlier activities ran
-// under or over, so the class still lines up with classDurationMin.
-function fillsRest(cls, i) {
-  return i === setFor(cls).activities.length - 1;
+// Fits a run of planned durations (ms) into a total budget (ms). If the plan
+// fits or comes up short, the surplus goes to the last item. If the plan
+// overshoots the budget, the deficit is cut from the *last* item first, then
+// the one before it, and so on — an activity only gives up time once every
+// activity after it has already given up all of its own.
+function cascadeDurations(plannedMs, budgetMs) {
+  const durs = plannedMs.slice();
+  if (!durs.length) return durs;
+  const diff = budgetMs - durs.reduce((sum, d) => sum + d, 0);
+  if (diff >= 0) {
+    durs[durs.length - 1] += diff;
+  } else {
+    let remaining = -diff;
+    for (let k = durs.length - 1; k >= 0 && remaining > 0; k--) {
+      const cut = Math.min(durs[k], remaining);
+      durs[k] -= cut;
+      remaining -= cut;
+    }
+  }
+  return durs;
 }
 
 function activityDurMs(cls, rt) {
@@ -118,21 +134,19 @@ function activityDurMs(cls, rt) {
   const a = acts[rt.index];
   if (!a) return 0;
   const adjust = (rt.adjusts && rt.adjusts[rt.index]) || 0;
-  const base = fillsRest(cls, rt.index)
-    ? Math.max(0, actualClassEndMs(cls, rt) - rt.startedAt)
-    : a.min * 60000;
+  const tail = acts.slice(rt.index).map((x) => (x.min || 0) * 60000);
+  const budget = actualClassEndMs(cls, rt) - rt.startedAt;
+  const base = cascadeDurations(tail, budget)[0] || 0;
   return Math.max(0, base + adjust);
 }
 
-// Planned duration of slot i, ignoring runtime drift (the fill slot gets
-// whatever the plan leaves for it).
+// Planned duration of slot i, ignoring runtime drift (any shortfall between
+// the class duration and the activities' own minutes cascades in from the
+// end, same as a live overrun does).
 function actPlannedMs(cls, i) {
   const acts = setFor(cls).activities;
-  if (fillsRest(cls, i)) {
-    const others = acts.reduce((sum, a, j) => (j === i ? sum : sum + (a.min || 0)), 0);
-    return Math.max(0, classDurationMin(cls) - others) * 60000;
-  }
-  return (acts[i] ? acts[i].min : 0) * 60000;
+  const durs = cascadeDurations(acts.map((a) => (a.min || 0) * 60000), classDurationMin(cls) * 60000);
+  return durs[i] || 0;
 }
 
 // Projected clock window per activity plus overall drift (positive = behind
@@ -167,10 +181,15 @@ function projectSchedule(cls, rt, now) {
   if (rt.done) return { win, drift: 0 };
 
   let cursor = Math.max(win[cur].e, now);
-  for (let i = cur + 1; i < n; i++) {
-    const dur = fillsRest(cls, i) ? Math.max(0, classEnd - cursor) : acts[i].min * 60000;
-    win[i] = { s: cursor, e: cursor + dur };
-    cursor += dur;
+  if (cur + 1 < n) {
+    const futureMin = acts.slice(cur + 1).map((a) => (a.min || 0) * 60000);
+    const durs = cascadeDurations(futureMin, classEnd - cursor);
+    for (let k = 0; k < durs.length; k++) {
+      const i = cur + 1 + k;
+      const dur = Math.max(0, durs[k]);
+      win[i] = { s: cursor, e: cursor + dur };
+      cursor += dur;
+    }
   }
   const drift = cur + 1 < n
     ? win[cur + 1].s - planned[cur + 1]
