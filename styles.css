@@ -98,6 +98,8 @@ body {
 .btn.ghost { background: transparent; }
 .btn.small { padding: 0.4rem 0.8rem; font-size: 0.9rem; }
 .btn.danger { color: var(--red); border-color: rgba(225, 60, 90, 0.4); }
+.btn:disabled { opacity: 0.35; cursor: default; }
+.btn:disabled:hover { background: var(--surface); }
 
 /* Round -1/+1/+5 steppers */
 .time-btn {
@@ -112,6 +114,9 @@ body {
   font-size: 0.9rem;
   line-height: 1;
 }
+
+.time-sub { color: var(--red); border-color: rgba(225, 60, 90, 0.35); }
+.time-add { color: var(--green); border-color: rgba(16, 185, 129, 0.35); }
 
 /* Round primary call-to-action (Start now / Next Activity / Finish Class) */
 .btn.primary.cta-circle {
@@ -192,22 +197,45 @@ main {
   backdrop-filter: blur(6px);
 }
 
+/* Grid (not flex) so the clock sits at a fixed horizontal position —
+   centered on the row — no matter how long the class name is. */
 .class-head {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
   gap: 0.5rem 1rem;
-  margin-bottom: 1.2rem;
+  margin-bottom: 0.5rem;
 }
 
-.class-name { font-size: 1.5rem; font-weight: 700; }
+.class-name {
+  font-size: 1.5rem;
+  font-weight: 700;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .now-inline {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
   font-size: 1.05rem;
+  justify-self: center;
+  white-space: nowrap;
 }
+
+#btn-restart { justify-self: end; }
+
+.class-summary {
+  text-align: center;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.95rem;
+  min-height: 1.3rem;
+  margin-bottom: 1rem;
+}
+
+.class-summary.over { color: var(--red); }
 
 /* ---------- Big countdown ---------- */
 .big {
@@ -339,8 +367,6 @@ main {
   gap: 0.5rem;
 }
 
-.adjust .btn { color: var(--muted); }
-
 .act-foot {
   display: flex;
   align-items: center;
@@ -389,6 +415,7 @@ body.fs main { align-items: center; }
 body.fs .card { width: min(96vw, 120rem); }
 body.fs .class-name { font-size: clamp(1.5rem, 4vmin, 3rem); }
 body.fs .now-inline { font-size: clamp(1.05rem, 2.2vmin, 1.8rem); }
+body.fs .class-summary { font-size: clamp(0.95rem, 2vmin, 1.6rem); }
 body.fs .big { font-size: clamp(3.5rem, 26vmin, 24rem); }
 body.fs .mini-label { font-size: clamp(0.85rem, 1.8vmin, 1.4rem); }
 body.fs .segbar { height: clamp(3.4rem, 9vmin, 6.5rem); }

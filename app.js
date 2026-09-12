@@ -137,7 +137,9 @@ function activityDurMs(cls, rt) {
   const tail = acts.slice(rt.index).map((x) => (x.min || 0) * 60000);
   const budget = actualClassEndMs(cls, rt) - rt.startedAt;
   const base = cascadeDurations(tail, budget)[0] || 0;
-  return Math.max(0, base + adjust);
+  // +time can grow this activity by eating later ones, but never past the
+  // class's own end -- there is nothing further downstream left to give up.
+  return Math.max(0, Math.min(base + adjust, budget));
 }
 
 // Planned duration of slot i, ignoring runtime drift (any shortfall between
@@ -394,10 +396,11 @@ function renderStage() {
 
   const head = `
     <div class="class-head">
-      <h2 class="class-name">${esc(cls.name)}</h2>
+      <h2 class="class-name" title="${esc(cls.name)}">${esc(cls.name)}</h2>
       <div class="now-inline" id="now-clock">—</div>
       <button id="btn-restart" class="icon-btn bordered" title="Restart this class from the beginning">↺</button>
-    </div>`;
+    </div>
+    <div class="class-summary" id="class-summary"></div>`;
 
   let body;
   if (rt.done) {
@@ -431,9 +434,9 @@ function renderStage() {
         ${segBarHTML(cls)}
         <div class="act-foot">
           <div class="adjust">
-            <button class="btn time-btn" data-adj="-60000" title="Take a minute off this activity" aria-label="Take a minute off this activity">−1</button>
-            <button class="btn time-btn" data-adj="60000" title="Give this activity one more minute" aria-label="Give this activity one more minute">+1</button>
-            <button class="btn time-btn" data-adj="300000" title="Give this activity five more minutes" aria-label="Give this activity five more minutes">+5</button>
+            <button class="btn time-btn time-sub" data-adj="-60000" title="Take a minute off this activity" aria-label="Take a minute off this activity">−1</button>
+            <button class="btn time-btn time-add" data-adj="60000" title="Give this activity one more minute" aria-label="Give this activity one more minute">+1</button>
+            <button class="btn time-btn time-add" data-adj="300000" title="Give this activity five more minutes" aria-label="Give this activity five more minutes">+5</button>
           </div>
           <div class="foot-btns">
             ${rt.index > 0 ? '<button id="btn-back" class="btn ghost" title="Back to the previous activity">◂ Back</button>' : ''}
@@ -617,6 +620,14 @@ function updateDynamic() {
     elapsed = now - rt.startedAt;
     const remaining = durMs - elapsed;
     overdue = remaining < 0;
+
+    // +1/+5 can't add more once this activity already runs to the class's
+    // end (nothing left downstream to take it from) — disable rather than
+    // let clicks silently do nothing.
+    const budget = actualClassEndMs(cls, rt) - rt.startedAt;
+    const atCap = durMs >= budget - 500; // small slack for ms-level rounding
+    document.querySelectorAll('#stage .time-add').forEach((b) => { b.disabled = atCap; });
+
     const big = $('#act-remaining');
     if (big) {
       if (!overdue) {
@@ -638,6 +649,31 @@ function updateDynamic() {
           beeped.add(key);
           chime();
         }
+      }
+    }
+  }
+
+  // Class-level summary: actual start–end window and total time left,
+  // shown once the class has actually started (blank beforehand, since the
+  // pre-start countdown already covers that case).
+  const summaryEl = $('#class-summary');
+  if (summaryEl) {
+    if (rt.index === -1) {
+      summaryEl.textContent = '';
+      summaryEl.classList.remove('over');
+    } else {
+      const actualStart = rt.starts[0] ?? start;
+      const cEnd = actualClassEndMs(cls, rt);
+      const windowStr = `${fmt12Date(new Date(actualStart))} – ${fmt12Date(new Date(cEnd))}`;
+      if (rt.done) {
+        summaryEl.textContent = `${windowStr} · Class complete`;
+        summaryEl.classList.remove('over');
+      } else {
+        const remain = cEnd - now;
+        summaryEl.textContent = remain >= 0
+          ? `${windowStr} · ${fmtDur(remain)} left`
+          : `${windowStr} · +${fmtDur(-remain)} over`;
+        summaryEl.classList.toggle('over', remain < 0);
       }
     }
   }
