@@ -1027,10 +1027,12 @@ function init() {
       toggleFullscreen();
     } else if (k === 'd' || k === 'D') {
       setTheme(prefs.theme === 'light' ? 'dark' : 'light');
-    } else if (k === '+') {
+    } else if (k === '+' || e.code === 'NumpadAdd' || (e.shiftKey && e.code === 'Equal')) {
+      // On some keyboard layouts Shift+"=" doesn't reliably report e.key
+      // as "+", so the physical key (e.code) is checked too.
       e.preventDefault();
       adjustCurrent(60000);
-    } else if (k === '-') {
+    } else if (k === '-' || e.code === 'NumpadSubtract' || e.code === 'Minus') {
       e.preventDefault();
       adjustCurrent(-60000);
     }
