@@ -623,20 +623,32 @@ function updateDynamic() {
   if (acts.length) {
     const proj = projectSchedule(cls, rt, now);
     const n = acts.length;
-    const origin = proj.win[0].s;
-    const total = Math.max(1, proj.win[n - 1].e - origin);
+    // Derive the 100% reference by summing the segments' own durations,
+    // rather than measuring end-to-end from the schedule. While the current
+    // activity is overdue, projectSchedule jumps its "cursor" for future
+    // segments straight to `now`, leaving a gap between the current
+    // segment's nominal end and the next one's start that isn't attributed
+    // to any segment. Measuring total end-to-end would count that gap but
+    // no segment would ever claim it, so the segments' widths would fall
+    // short of 100% and leave an invisible void — which, sitting right
+    // after the current segment, made the last segment look like it had
+    // vanished. Summing the segments directly guarantees they always add
+    // up to exactly 100%, gap or no gap.
+    const durations = proj.win.map((w) => Math.max(0, w.e - w.s));
+    const total = Math.max(1, durations.reduce((sum, d) => sum + d, 0));
+    const cumPct = [0];
+    durations.forEach((d) => cumPct.push(cumPct[cumPct.length - 1] + (d / total) * 100));
 
     document.querySelectorAll('#stage .seg-time').forEach((el) => {
       const i = Number(el.dataset.i);
       const t = i < n ? proj.win[i].s : proj.win[n - 1].e;
       el.textContent = Number.isFinite(t) ? fmtHM(t) : '—';
-      el.style.left = (Math.max(0, Math.min(total, t - origin)) / total * 100).toFixed(3) + '%';
+      el.style.left = cumPct[i].toFixed(3) + '%';
     });
     document.querySelectorAll('#stage .seg').forEach((seg) => {
       const i = Number(seg.dataset.i);
-      const w = proj.win[i];
-      const durationMs = Math.max(0, w.e - w.s);
-      seg.style.flexBasis = (durationMs / total * 100).toFixed(3) + '%';
+      const durationMs = durations[i];
+      seg.style.flexBasis = (cumPct[i + 1] - cumPct[i]).toFixed(3) + '%';
       const dur = seg.querySelector('.seg-dur');
       if (dur) dur.textContent = `${Math.round(durationMs / 60000)} min`;
       const fill = seg.querySelector('.seg-fill');
