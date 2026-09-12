@@ -438,8 +438,7 @@ function renderStage() {
       </div>
       <div class="now-inline" id="now-clock">—</div>
       <button id="btn-restart" class="icon-btn bordered" title="Restart this class from the beginning">↺</button>
-    </div>
-    <div class="class-summary" id="class-summary"></div>`;
+    </div>`;
 
   let body;
   if (rt.done) {
@@ -465,11 +464,19 @@ function renderStage() {
         </div>` : '<p class="muted">This class has no activities yet — add some in Setup.</p>'}
       </div>`;
   } else {
+    const a = acts[rt.index];
     const next = acts[rt.index + 1];
     body = `
       <div class="activity">
-        <div class="mini-label" id="mini-label"><span id="drift"></span></div>
-        <div class="big" id="act-remaining">—</div>
+        <div class="counter-trio">
+          <div class="trio-big trio-left" id="act-remaining">—</div>
+          <div class="trio-mid">
+            <div class="act-name">${esc(a.name)}</div>
+            <div class="act-sub" id="drift"></div>
+          </div>
+          <div class="trio-big trio-right" id="class-time-left">—</div>
+        </div>
+        <div class="trio-caption"><span>This activity</span><span>Left in class</span></div>
         ${segBarHTML(cls)}
         <div class="act-foot">
           <div class="adjust">
@@ -700,31 +707,23 @@ function updateDynamic() {
     }
   }
 
-  // Class window (start–end), next to the class name — and the total time
-  // left, on its own line below — both shown once the class has actually
-  // started (blank beforehand, since the pre-start countdown already
-  // covers that case).
+  // Class window (start–end), next to the class name, shown once the class
+  // has actually started (blank beforehand, since the pre-start countdown
+  // already covers that case).
   const windowEl = $('#class-window');
-  const summaryEl = $('#class-summary');
-  if (rt.index === -1) {
-    if (windowEl) windowEl.textContent = '';
-    if (summaryEl) { summaryEl.textContent = ''; summaryEl.classList.remove('over'); }
-  } else {
-    const actualStart = rt.starts[0] ?? start;
-    const cEnd = actualClassEndMs(cls, rt);
-    if (windowEl) windowEl.textContent = `${fmt12Date(new Date(actualStart))} – ${fmt12Date(new Date(cEnd))}`;
-    if (summaryEl) {
-      if (rt.done) {
-        summaryEl.textContent = 'Class complete';
-        summaryEl.classList.remove('over');
-      } else {
-        const remain = cEnd - now;
-        summaryEl.innerHTML = remain >= 0
-          ? `${durationSmallSecHTML(remain)} left`
-          : `+${durationSmallSecHTML(-remain)} over`;
-        summaryEl.classList.toggle('over', remain < 0);
-      }
-    }
+  if (windowEl) {
+    windowEl.textContent = rt.index === -1
+      ? ''
+      : `${fmt12Date(new Date(rt.starts[0] ?? start))} – ${fmt12Date(new Date(actualClassEndMs(cls, rt)))}`;
+  }
+
+  // Dimmed "time left in class", the same size as the activity counter,
+  // sitting to its right — only present while an activity is running.
+  const classTimeEl = $('#class-time-left');
+  if (classTimeEl) {
+    const remain = actualClassEndMs(cls, rt) - now;
+    renderBigDur(classTimeEl, Math.abs(remain), remain < 0 ? '+' : '');
+    classTimeEl.classList.toggle('over', remain < 0);
   }
 
   // Segmented class bar: every segment's width and boundary position come
@@ -785,9 +784,10 @@ function updateDynamic() {
     const driftEl = $('#drift');
     if (driftEl) {
       const mins = Math.round(proj.drift / 60000);
+      driftEl.classList.remove('behind', 'ahead');
       if (rt.index >= 0 && !rt.done && Math.abs(mins) >= 1) {
         driftEl.textContent = `${Math.abs(mins)} min ${mins > 0 ? 'behind' : 'ahead'}`;
-        driftEl.className = 'drift ' + (mins > 0 ? 'behind' : 'ahead');
+        driftEl.classList.add(mins > 0 ? 'behind' : 'ahead');
       } else {
         driftEl.textContent = '';
       }
