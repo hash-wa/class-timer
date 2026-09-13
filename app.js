@@ -5,6 +5,8 @@
 const CONFIG_KEY = 'classTimer.config.v1';
 const RUNTIME_KEY = 'classTimer.runtime.v1';
 const PREFS_KEY = 'classTimer.prefs.v1';
+const HISTORY_KEY = 'classTimer.history.v1';
+const SYNC_KEY = 'classTimer.sync.v1';
 
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 
@@ -60,9 +62,27 @@ if (!runtime || runtime.date !== todayKey()) {
   runtime = { date: todayKey(), selected: null, byClass: {} };
 }
 
+// One record per completed class run, kept indefinitely (not just today's).
+let historyLog = loadJSON(HISTORY_KEY) || [];
+
+// Sync credentials/state -- only ever written to this browser's storage.
+let sync = Object.assign({ token: '', gistId: '', lastSyncAt: null }, loadJSON(SYNC_KEY));
+let syncStatus = { state: 'idle', message: '' }; // transient, not persisted
+
 const saveConfig = () => saveJSON(CONFIG_KEY, config);
 const saveRuntime = () => saveJSON(RUNTIME_KEY, runtime);
 const savePrefs = () => saveJSON(PREFS_KEY, prefs);
+const saveHistory = () => saveJSON(HISTORY_KEY, historyLog);
+const saveSync = () => saveJSON(SYNC_KEY, sync);
+
+// Config edits are what gets synced (runtime/prefs stay per-device) --
+// stamped with when they happened so two computers pulling from the same
+// Gist can tell whose edit is newer.
+function markConfigChanged() {
+  config.updatedAt = Date.now();
+  saveConfig();
+  scheduleSyncPush();
+}
 
 /* ================= Model helpers ================= */
 
@@ -303,6 +323,45 @@ function sanitizeRuntime() {
   saveRuntime();
 }
 
+// A finished run's record: planned vs. actual time per activity, built from
+// the same `starts` timestamps the live schedule projection uses.
+function buildHistoryEntry(cls, rt) {
+  const acts = setFor(cls).activities;
+  const n = acts.length;
+  const activities = acts.map((a, i) => {
+    const s = rt.starts[i];
+    const e = i < n - 1 ? rt.starts[i + 1] : rt.finishedAt;
+    return {
+      name: a.name,
+      plannedMin: a.min || 0,
+      actualMs: (s != null && e != null) ? Math.max(0, e - s) : null,
+    };
+  });
+  return {
+    id: uid(),
+    classId: cls.id,
+    className: cls.name,
+    scheduledStart: +startDate(cls),
+    scheduledEnd: classEndMs(cls),
+    actualStart: rt.starts[0] ?? null,
+    actualEnd: rt.finishedAt ?? null,
+    activities,
+  };
+}
+
+// Recorded once per run, keyed by (class, actual start time) so re-finishing
+// after a Back (which doesn't get a new start time) updates the same record
+// instead of appending a duplicate.
+function recordHistoryIfComplete(cls, rt) {
+  if (rt.starts[0] == null) return;
+  const entry = buildHistoryEntry(cls, rt);
+  const idx = historyLog.findIndex((h) => h.classId === cls.id && h.actualStart === entry.actualStart);
+  if (idx >= 0) { entry.id = historyLog[idx].id; historyLog[idx] = entry; }
+  else historyLog.push(entry);
+  saveHistory();
+  scheduleSyncPush(500);
+}
+
 /* ================= Formatting ================= */
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -411,7 +470,10 @@ function releaseWakeLock() {
 }
 
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') ensureWakeLock();
+  if (document.visibilityState === 'visible') {
+    ensureWakeLock();
+    maybePull();
+  }
 });
 
 /* ================= Rendering: class chips ================= */
@@ -604,6 +666,7 @@ function nextActivity() {
   } else {
     rt.done = true;
     rt.finishedAt = Date.now();
+    recordHistoryIfComplete(cls, rt);
   }
   saveRuntime();
   renderChips(); // dot disappears once done
@@ -925,11 +988,13 @@ function renderSettings() {
           <button type="button" class="day-btn${classDays(c).includes(day) ? ' active' : ''}" data-action="toggle-day" data-day="${day}" title="${name}">${name[0]}</button>`).join('')}
       </div>
     </div>`).join('') || '<p class="muted">No classes yet.</p>';
+
+  renderSyncPanel();
 }
 
 function refreshAfterConfigChange({ structural = false } = {}) {
   sanitizeRuntime();
-  saveConfig();
+  markConfigChanged();
   if (structural) renderSettings();
   renderChips();
   renderStage();
@@ -1008,6 +1073,281 @@ function handleSettingsChange(e) {
   refreshAfterConfigChange({ structural });
 }
 
+/* ================= Sync (GitHub Gist) ================= */
+
+// Settings and history live in a private Gist so pasting the same token on
+// another computer finds the same data automatically -- no need to copy a
+// Gist ID around by hand.
+const GIST_FILENAME = 'class-timer-data.json';
+const GIST_MARKER = 'class-timer-sync-data-v1';
+
+async function ghFetch(path, options = {}) {
+  const res = await fetch(`https://api.github.com${path}`, {
+    ...options,
+    headers: {
+      Authorization: `token ${sync.token}`,
+      Accept: 'application/vnd.github+json',
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    },
+  });
+  if (!res.ok) {
+    let detail = '';
+    try { detail = (await res.json()).message || ''; } catch { /* body wasn't JSON */ }
+    throw new Error(detail || `GitHub API error (${res.status})`);
+  }
+  return res.json();
+}
+
+let gistLookupPromise = null;
+
+// Finds this app's data Gist among the token's own Gists (by filename), or
+// creates one if this is the first computer to ever connect. Concurrent
+// callers share one in-flight lookup so two near-simultaneous syncs can't
+// each end up creating their own Gist.
+function findOrCreateGist() {
+  if (sync.gistId) return Promise.resolve(sync.gistId);
+  if (gistLookupPromise) return gistLookupPromise;
+  const lookup = (async () => {
+    for (let page = 1; page <= 5; page++) {
+      const gists = await ghFetch(`/gists?per_page=100&page=${page}`);
+      const found = gists.find((g) => g.files && g.files[GIST_FILENAME]);
+      if (found) { sync.gistId = found.id; saveSync(); return sync.gistId; }
+      if (gists.length < 100) break;
+    }
+    const created = await ghFetch('/gists', {
+      method: 'POST',
+      body: JSON.stringify({
+        description: GIST_MARKER,
+        public: false,
+        files: { [GIST_FILENAME]: { content: JSON.stringify({ version: 1, config, history: historyLog }, null, 2) } },
+      }),
+    });
+    sync.gistId = created.id;
+    saveSync();
+    return sync.gistId;
+  })();
+  // Assigning the .finally()-derived promise itself (rather than calling
+  // .finally() on the side and discarding its result) avoids leaving an
+  // orphaned promise whose rejection nothing awaits -- that would otherwise
+  // surface as a stray "unhandled rejection" console error on a failed
+  // lookup, even though the caller's own await/catch handles it correctly.
+  gistLookupPromise = lookup.finally(() => { gistLookupPromise = null; });
+  return gistLookupPromise;
+}
+
+// Merges by (class, actual start time) rather than by id, so a run that
+// somehow ends up recorded independently on two computers collapses into
+// one entry -- keeping whichever version finished later.
+function mergeHistory(remoteHistory) {
+  const map = new Map();
+  for (const h of [...historyLog, ...(remoteHistory || [])]) {
+    const key = h.classId + '|' + h.actualStart;
+    const existing = map.get(key);
+    if (!existing || (h.actualEnd || 0) >= (existing.actualEnd || 0)) map.set(key, h);
+  }
+  historyLog = [...map.values()].sort((a, b) => (b.actualStart || 0) - (a.actualStart || 0));
+  saveHistory();
+}
+
+async function pullFromGist() {
+  const id = await findOrCreateGist();
+  const gist = await ghFetch(`/gists/${id}`);
+  const file = gist.files[GIST_FILENAME];
+  if (!file) return;
+  const raw = file.truncated ? await (await fetch(file.raw_url)).text() : file.content;
+  const remote = JSON.parse(raw || '{}');
+  // Settings are last-write-wins by timestamp; history is additive, so it
+  // always merges regardless of which side's config is newer.
+  const localTs = config.updatedAt || 0;
+  const remoteTs = (remote.config && remote.config.updatedAt) || 0;
+  if (remote.config && remoteTs > localTs) {
+    config = remote.config;
+    saveConfig();
+    sanitizeRuntime();
+  }
+  mergeHistory(remote.history);
+  sync.lastSyncAt = Date.now();
+  saveSync();
+  renderSettings();
+  renderChips();
+  renderStage();
+  if (!$('#history-overlay').classList.contains('hidden')) renderHistory();
+}
+
+async function pushToGist() {
+  if (!sync.token) return;
+  const id = await findOrCreateGist();
+  await ghFetch(`/gists/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      files: { [GIST_FILENAME]: { content: JSON.stringify({ version: 1, config, history: historyLog }, null, 2) } },
+    }),
+  });
+  sync.lastSyncAt = Date.now();
+  saveSync();
+  if (syncStatus.state !== 'error') setSyncStatus('ok');
+}
+
+let pushTimer = null;
+// Debounced so a burst of edits (typing an activity name, several settings
+// clicks in a row) sends one push, not one per keystroke.
+function scheduleSyncPush(delay = 3000) {
+  if (!sync.token) return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(() => {
+    pushToGist().catch((err) => setSyncStatus('error', err.message));
+  }, delay);
+}
+
+function maybePull() {
+  if (!sync.token) return;
+  if (sync.lastSyncAt && Date.now() - sync.lastSyncAt < 15000) return;
+  pullFromGist().catch((err) => setSyncStatus('error', err.message));
+}
+
+function setSyncStatus(state, message = '') {
+  syncStatus = { state, message };
+  renderSyncPanel();
+}
+
+function timeAgo(ts) {
+  const s = Math.round((Date.now() - ts) / 1000);
+  if (s < 10) return 'just now';
+  if (s < 60) return `${s}s ago`;
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m}m ago`;
+  return `${Math.round(m / 60)}h ago`;
+}
+
+async function connectSync() {
+  const input = $('#sync-token');
+  const token = input && input.value.trim();
+  if (!token) return;
+  sync.token = token;
+  saveSync();
+  setSyncStatus('connecting');
+  try {
+    await findOrCreateGist();
+    await pullFromGist();
+    await pushToGist();
+    setSyncStatus('ok');
+  } catch (err) {
+    sync.token = '';
+    sync.gistId = '';
+    saveSync();
+    setSyncStatus('error', err.message);
+  }
+}
+
+function disconnectSync() {
+  clearTimeout(pushTimer);
+  sync = { token: '', gistId: '', lastSyncAt: null };
+  saveSync();
+  setSyncStatus('idle');
+}
+
+async function manualSyncNow() {
+  setSyncStatus('syncing');
+  try {
+    await pullFromGist();
+    await pushToGist();
+    setSyncStatus('ok');
+  } catch (err) {
+    setSyncStatus('error', err.message);
+  }
+}
+
+function renderSyncPanel() {
+  const el = $('#sync-panel');
+  if (!el) return;
+  if (!sync.token) {
+    el.innerHTML = `
+      <div class="sync-row">
+        <input type="password" id="sync-token" class="in" placeholder="GitHub personal access token (gist scope)" autocomplete="off">
+        <button id="btn-sync-connect" class="btn small">Connect</button>
+      </div>
+      <p class="muted">Create a <em>classic</em> token at github.com &rarr; Settings &rarr; Developer settings &rarr; Personal access tokens, with only the "gist" box checked. It's stored in this browser only, never sent anywhere but GitHub.</p>
+      ${syncStatus.state === 'error' ? `<p class="sync-status error">Couldn't connect: ${esc(syncStatus.message)}</p>` : ''}
+      ${syncStatus.state === 'connecting' ? '<p class="sync-status">Connecting…</p>' : ''}
+    `;
+    $('#btn-sync-connect').addEventListener('click', connectSync);
+  } else {
+    const statusText = syncStatus.state === 'syncing' || syncStatus.state === 'connecting'
+      ? 'Syncing…'
+      : syncStatus.state === 'error'
+        ? `Sync error: ${esc(syncStatus.message)}`
+        : `Last synced ${sync.lastSyncAt ? timeAgo(sync.lastSyncAt) : 'never'}`;
+    el.innerHTML = `
+      <div class="sync-row">
+        <span class="sync-badge">Connected</span>
+        <button id="btn-sync-now" class="btn small">Sync now</button>
+        <button id="btn-sync-disconnect" class="btn small ghost">Disconnect</button>
+      </div>
+      <p class="sync-status ${syncStatus.state === 'error' ? 'error' : ''}">${statusText}</p>
+      <p class="muted sync-gist-id">Data lives in <a href="https://gist.github.com/${sync.gistId}" target="_blank" rel="noopener">this Gist</a> on your GitHub account.</p>
+    `;
+    $('#btn-sync-now').addEventListener('click', manualSyncNow);
+    $('#btn-sync-disconnect').addEventListener('click', disconnectSync);
+  }
+}
+
+/* ================= History ================= */
+
+function openHistory() {
+  renderHistory();
+  $('#history-overlay').classList.remove('hidden');
+}
+
+function closeHistory() {
+  $('#history-overlay').classList.add('hidden');
+}
+
+function renderHistory() {
+  const body = $('#history-body');
+  if (!historyLog.length) {
+    body.innerHTML = '<p class="muted">No completed runs yet. A record is added automatically each time a class finishes.</p>';
+    return;
+  }
+  const sorted = [...historyLog].sort((a, b) => (b.actualStart || 0) - (a.actualStart || 0));
+  body.innerHTML = sorted.map((h) => {
+    const driftMs = (h.actualEnd || 0) - (h.scheduledEnd || 0);
+    const driftMinAbs = Math.abs(Math.round(driftMs / 60000));
+    const driftClass = driftMinAbs < 1 ? '' : (driftMs > 0 ? 'behind' : 'ahead');
+    const driftLabel = driftMinAbs < 1 ? 'On time' : `${driftMinAbs} min ${driftMs > 0 ? 'behind' : 'ahead'}`;
+    const dateLabel = h.actualStart ? new Date(h.actualStart).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }) : '—';
+    const rangeLabel = h.actualStart && h.actualEnd
+      ? `${fmt12Date(new Date(h.actualStart))} – ${fmt12Date(new Date(h.actualEnd))}`
+      : '—';
+    const acts = h.activities.map((a) => {
+      const actualMin = a.actualMs != null ? Math.round(a.actualMs / 60000) : null;
+      const deltaMin = actualMin != null ? actualMin - a.plannedMin : 0;
+      const deltaLabel = actualMin != null ? ` (${deltaMin > 0 ? '+' : ''}${deltaMin} min)` : '';
+      return `<div class="hist-act"><span class="hist-act-name">${esc(a.name)}</span><span>${a.plannedMin} min planned &rarr; ${actualMin != null ? actualMin + ' min' : '—'}${deltaLabel}</span></div>`;
+    }).join('');
+    return `
+      <div class="hist-card" data-hist="${h.id}">
+        <div class="hist-head">
+          <div>
+            <div class="hist-class">${esc(h.className)}</div>
+            <div class="hist-date">${dateLabel} · ${rangeLabel}</div>
+          </div>
+          <div class="hist-drift ${driftClass}">${driftLabel}</div>
+          <button class="icon-btn" data-action="del-history" title="Delete this record">✕</button>
+        </div>
+        <div class="hist-acts">${acts}</div>
+      </div>`;
+  }).join('');
+}
+
+function deleteHistoryEntry(id) {
+  if (!confirm('Delete this history record?')) return;
+  historyLog = historyLog.filter((h) => h.id !== id);
+  saveHistory();
+  scheduleSyncPush(500);
+  renderHistory();
+}
+
 /* ================= Import / export / reset ================= */
 
 function exportData() {
@@ -1030,7 +1370,7 @@ function importData(file) {
       const okClasses = data.classes.every((c) => typeof c.start === 'string' && /^\d{1,2}:\d{2}$/.test(c.start));
       if (!okClasses) throw new Error('bad class start time');
       config = data;
-      saveConfig();
+      markConfigChanged();
       runtime = { date: todayKey(), selected: null, byClass: {} };
       saveRuntime();
       renderSettings();
@@ -1044,11 +1384,12 @@ function importData(file) {
 }
 
 function resetAllData() {
-  if (!confirm('Delete ALL classes, activity sets, and progress? This cannot be undone.')) return;
+  const syncNote = sync.token ? ' This will also sync to any other connected computers.' : '';
+  if (!confirm(`Delete ALL classes, activity sets, and progress?${syncNote} This cannot be undone.`)) return;
   config = defaultConfig();
   runtime = { date: todayKey(), selected: null, byClass: {} };
   beeped.clear();
-  saveConfig();
+  markConfigChanged();
   saveRuntime();
   renderSettings();
   renderChips();
@@ -1090,6 +1431,17 @@ function init() {
   });
   $('#panel-body').addEventListener('click', handleSettingsClick);
   $('#panel-body').addEventListener('change', handleSettingsChange);
+
+  $('#btn-history').addEventListener('click', openHistory);
+  $('#btn-close-history').addEventListener('click', closeHistory);
+  $('#history-overlay').addEventListener('click', (e) => {
+    if (e.target === $('#history-overlay')) closeHistory();
+  });
+  $('#history-body').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action="del-history"]');
+    if (!btn) return;
+    deleteHistoryEntry(btn.closest('[data-hist]').dataset.hist);
+  });
   $('#btn-add-set').addEventListener('click', () => {
     config.activitySets.push({ id: uid(), name: 'New set', activities: [{ id: uid(), name: 'New activity', min: 10 }] });
     refreshAfterConfigChange({ structural: true });
@@ -1188,6 +1540,7 @@ function init() {
   renderChips();
   renderStage();
   ensureWakeLock();
+  maybePull();
   setInterval(tick, 250);
 }
 

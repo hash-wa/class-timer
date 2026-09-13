@@ -12,6 +12,8 @@ A classroom timer for teachers, built for projecting during lessons.
 - **Class window and drift.** Its scheduled start–end window appears right next to the class name before it starts, switching to the actual window once running (which can differ if time gets added or lost along the way), with a note underneath for how far ahead of or behind plan you are.
 - **Stay on plan.** **◂ Back** (or ←) undoes an accidental advance and restores the previous activity's clock. The round **−1** (red) **/ +1 / +5** (green) time buttons — soft-tinted circles the same size as the Next Activity button, each with a clean drawn +/- icon and a small minute badge — or number keys **1-9** (add) and **Shift+1-9** (subtract) stretch or shave the current activity when class runs long, cascading the change through later activities the same way an overrun does. Adding time is always capped so the class can never run past its own end: the +1/+5 buttons grey out once there's nothing left to take, and the same cap applies to the keyboard shortcuts even though they aren't gated by a disabled button.
 - **Activity sets.** Activities (name + duration) are grouped into reusable sets. Different classes can use different sets, and multiple classes can share the same set with different start times.
+- **Sync across computers.** Classes, activity sets, and run history can stay identical on every computer, using a private GitHub Gist as the shared copy. Paste a GitHub token (Setup → Sync) on each computer and they find the same Gist automatically — no Gist ID to copy around. Settings use last-write-wins (whichever computer saved last); history merges additively. Pulls happen on load and whenever the tab becomes visible again; pushes are debounced after edits and after each finished run. This is entirely optional — everything works locally without it.
+- **Run history.** Every time a class reaches its last activity, a record is kept: actual start/end times, how far ahead or behind schedule it finished, and each activity's planned vs. actual duration. Open it from the 🕓 button in the top bar. Records can be deleted individually and sync along with settings if Sync is connected.
 
 ## Usage
 
@@ -31,6 +33,8 @@ Handy extras:
 - Keyboard shortcuts: Space / → / N = Next Activity, ← = Back (presenter remotes work: PageDown / PageUp), 1-9 = add that many minutes to the current activity, Shift+1-9 = subtract instead
 - The browser tab title shows the live countdown, so the timer stays visible while you present other tabs
 - Export/Import JSON to move your setup between computers (settings are stored in the browser's localStorage)
+
+To connect Sync, create a **classic** GitHub personal access token with only the "gist" scope checked (github.com → Settings → Developer settings → Personal access tokens), then paste it into Setup → Sync on each computer. The token is stored only in that browser's localStorage and is sent only to api.github.com — treat it like a password, since anyone with it can read/write your Gists.
 
 ## Development
 

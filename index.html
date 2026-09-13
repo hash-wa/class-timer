@@ -16,6 +16,7 @@
       <button id="btn-theme" class="icon-btn" title="Toggle light / dark (D)">☀️</button>
       <button id="btn-sound" class="icon-btn" title="Toggle end-of-activity chime">🔔</button>
       <button id="btn-fullscreen" class="icon-btn" title="Toggle fullscreen">⛶</button>
+      <button id="btn-history" class="icon-btn" title="View run history">🕓</button>
       <button id="btn-settings" class="btn ghost">⚙ Setup</button>
     </div>
   </header>
@@ -54,6 +55,11 @@
           <label class="check"><input type="checkbox" id="opt-dim-fs"> Dim the screen in fullscreen</label>
         </section>
         <section>
+          <h3>Sync across computers</h3>
+          <p class="muted">Keep classes, activity sets, and run history the same everywhere, using a private Gist on your GitHub account as the shared copy. Paste the same token on another computer to connect it to this same data.</p>
+          <div id="sync-panel"></div>
+        </section>
+        <section>
           <h3>Data</h3>
           <div class="data-row">
             <button id="btn-export" class="btn small">Export JSON</button>
@@ -63,6 +69,16 @@
           <p class="muted">Settings live in this browser only — use Export/Import to move them to another computer.</p>
         </section>
       </div>
+    </div>
+  </div>
+
+  <div id="history-overlay" class="overlay hidden">
+    <div class="panel" role="dialog" aria-modal="true" aria-label="History">
+      <div class="panel-head">
+        <h2>Run history</h2>
+        <button id="btn-close-history" class="icon-btn" title="Close">✕</button>
+      </div>
+      <div class="panel-body" id="history-body"></div>
     </div>
   </div>
 
