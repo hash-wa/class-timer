@@ -20,7 +20,7 @@ A classroom timer for teachers, built for projecting during lessons.
 3. Add classes: name, start time, duration (blank = sum of activities), an activity set, and which days it meets (defaults to every day — tap a day letter to toggle it off).
 4. Leave the page open — each class starts on its own at its start time on its scheduled days. Press **Next Activity** (or Space / → / N) to advance.
 
-Once a class's window for one of its scheduled days has fully passed, the app counts down to its next scheduled occurrence instead of showing elapsed time. Classes not meeting today appear dimmed in the class-switcher chips.
+Once a class's window for one of its scheduled days has fully passed, the app counts down to its next scheduled occurrence instead of showing elapsed time. Classes not meeting today appear dimmed in the class-switcher chips, and a small pulsing dot marks whichever class is currently running — so you can tell it's still going even while looking at a different class's chip.
 
 Handy extras:
 

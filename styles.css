@@ -206,6 +206,25 @@ body {
 
 .chip.not-today { opacity: 0.5; }
 
+.chip-live {
+  align-self: center;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--green);
+  flex-shrink: 0;
+  animation: chip-live-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes chip-live-pulse {
+  from { opacity: 1; }
+  to { opacity: 0.3; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chip-live { animation: none; }
+}
+
 /* ---------- Stage / card ---------- */
 main {
   flex: 1;

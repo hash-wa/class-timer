@@ -420,10 +420,15 @@ function renderChips() {
   const nav = $('#class-chips');
   const cls = currentClass();
   const today = new Date();
-  nav.innerHTML = sortedClasses().map((c) => `
+  nav.innerHTML = sortedClasses().map((c) => {
+    const rt = rtFor(c.id);
+    const isLive = rt.index >= 0 && !rt.done;
+    return `
     <button class="chip ${cls && c.id === cls.id ? 'active' : ''} ${classMeetsOn(c, today) ? '' : 'not-today'}" data-class="${c.id}">
+      ${isLive ? '<span class="chip-live" title="Running now"></span>' : ''}
       <span>${esc(c.name)}</span><span class="chip-time">${fmt12(c.start)}</span>
-    </button>`).join('');
+    </button>`;
+  }).join('');
 }
 
 /* ================= Rendering: main stage ================= */
@@ -576,6 +581,7 @@ function startNow() {
     rt.done = true;
   }
   saveRuntime();
+  renderChips(); // the chip's live dot should appear the instant this happens
   renderStage();
 }
 
@@ -600,6 +606,7 @@ function nextActivity() {
     rt.finishedAt = Date.now();
   }
   saveRuntime();
+  renderChips(); // dot disappears once done
   renderStage();
 }
 
@@ -619,6 +626,7 @@ function prevActivity() {
   // the accidental advance never happened.
   rt.startedAt = rt.starts[rt.index] ?? Date.now();
   saveRuntime();
+  renderChips(); // dot reappears if this un-did a "finish class"
   renderStage();
 }
 
@@ -656,6 +664,7 @@ function restartClass() {
     if (key.startsWith(cls.id + ':')) beeped.delete(key);
   }
   saveRuntime();
+  renderChips(); // dot disappears
   renderStage();
 }
 
@@ -691,6 +700,7 @@ function tick() {
         rt.done = true;
       }
       saveRuntime();
+      renderChips(); // the chip's live dot should appear the instant this happens
       renderStage();
       return;
     }
