@@ -96,6 +96,20 @@ body {
 .btn.primary:hover { filter: brightness(1.1); }
 
 .btn.ghost { background: transparent; }
+
+/* Small notification dot for a sync error, so it's noticeable without
+   opening Setup to find it. */
+#btn-settings { position: relative; }
+#btn-settings.sync-error::after {
+  content: "";
+  position: absolute;
+  top: 0.3rem;
+  right: 0.45rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--red);
+}
 .btn.small { padding: 0.4rem 0.8rem; font-size: 0.9rem; }
 .btn.danger { color: var(--red); border-color: rgba(225, 60, 90, 0.4); }
 .btn:disabled { opacity: 0.35; cursor: default; }

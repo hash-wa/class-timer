@@ -1209,6 +1209,18 @@ function maybePull() {
 function setSyncStatus(state, message = '') {
   syncStatus = { state, message };
   renderSyncPanel();
+  updateSyncBadge();
+}
+
+// A small red dot on the Setup button itself, so a sync failure (expired
+// token, offline, etc.) is noticeable without having to open Setup to find
+// it -- the badge clears itself the moment a sync succeeds again.
+function updateSyncBadge() {
+  const btn = $('#btn-settings');
+  if (!btn) return;
+  const hasError = !!sync.token && syncStatus.state === 'error';
+  btn.classList.toggle('sync-error', hasError);
+  btn.title = hasError ? `Sync error: ${syncStatus.message} — open Setup to reconnect` : '';
 }
 
 function timeAgo(ts) {
